@@ -30,6 +30,13 @@ enum class CommState {
     Error
 };
 
+struct CreateNetworkData {
+    u8 dat[0x94];
+};
+struct GetSecurityParameterData {
+    u8 dat[0x20];
+};
+
 class ICommunicationInterface : public IServiceObject {
     private:
     public:
@@ -57,8 +64,11 @@ class ICommunicationInterface : public IServiceObject {
     private:
         std::tuple<Result> return_success();        
         std::tuple<Result> initialize(u64 unk, PidDescriptor pid);
-        std::tuple<Result> open_access_point();
-        std::tuple<Result> set_advertise_data(InPointer<u8> data1, InBuffer<u8> data2);
         std::tuple<Result, u64> get_state();
+        std::tuple<Result, u32, u32> get_ipv4_address();
+        std::tuple<Result, GetSecurityParameterData> get_security_Parameter();
+        std::tuple<Result> open_access_point();
+        std::tuple<Result> create_network(CreateNetworkData data);
+        std::tuple<Result> set_advertise_data(InPointer<u8> data1, InBuffer<u8> data2);
         CommState state;
 };

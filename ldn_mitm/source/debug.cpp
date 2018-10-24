@@ -31,22 +31,7 @@ void Log(const void *data, int size) {
     (void)(size);
     /* ... */
 #if 0
-    u8 backup[TlsBackupSize];
-    memcpy(backup, armGetTls(), TlsBackupSize);
-    const u8 *dat = (const u8 *)data;
-    char buf[128];
-    sprintf(buf, "Bin Log: %d\n", size);
-    LogStr(buf);
-    for (int i = 0; i < size; i += 16) {
-        int s = std::min(size - i, 16);
-        buf[0] = 0;
-        for (int j = 0; j < s; j++) {
-            sprintf(buf + strlen(buf), "%02x", dat[i + j]);
-        }
-        sprintf(buf + strlen(buf), "\n");
-        LogStr(buf);
-    }
-    memcpy(armGetTls(), backup, TlsBackupSize);
+    LogHex(data, size);
 #endif
 }
 

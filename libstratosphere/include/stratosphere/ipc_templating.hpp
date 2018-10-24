@@ -21,6 +21,7 @@
 #include <tuple>
 #include "../boost/callable_traits.hpp"
 #include <type_traits>
+#include "../../../debug.hpp"
 
 #include "domainowner.hpp"
 
@@ -275,25 +276,36 @@ T GetValueFromIpcParsedCommand(IpcParsedCommand& r, IpcCommand& out_c, u8 *point
 template <typename T>
 bool ValidateIpcParsedCommandArgument(IpcParsedCommand& r, size_t& cur_rawdata_index, size_t& cur_c_size_offset, size_t& a_index, size_t& b_index, size_t& x_index, size_t& c_index, size_t& h_index, size_t& total_c_size) {
     const size_t old_c_size_offset = cur_c_size_offset;
+    char buf[128];
     if constexpr (std::is_base_of<InBufferBase, T>::value) {
-        return r.Buffers[a_index] != NULL && r.BufferDirections[a_index] == BufferDirection_Send && r.BufferTypes[a_index++] == T::expected_type;
+        sprintf(buf, "fuck 1 %d %d %d %" PRIu64 "\n", r.Buffers[a_index] != NULL, r.BufferDirections[a_index] == BufferDirection_Send, r.BufferTypes[a_index] == T::expected_type, a_index);
+        LogStr2(buf);
+        return r.BufferDirections[a_index] == BufferDirection_Send && r.BufferTypes[a_index++] == T::expected_type;
     } else if constexpr (std::is_base_of<OutBufferBase, T>::value) {
+        LogStr2("fuck 2\n");
         return r.Buffers[b_index] != NULL && r.BufferDirections[b_index] == BufferDirection_Recv && r.BufferTypes[b_index++] == T::expected_type;
     } else if constexpr (is_specialization_of<T, InPointer>::value) {
+        sprintf(buf, "fuck 3 %d\n", r.Statics[x_index] != NULL);
+        LogStr2(buf);
         return r.Statics[x_index] != NULL;
     } else if constexpr (std::is_base_of<OutPointerWithServerSizeBase, T>::value) {
+        LogStr2("fuck 4\n");
         total_c_size += T::num_elements;
         return true;
     } else if constexpr (is_specialization_of<T, OutPointerWithClientSize>::value) {
+        LogStr2("fuck 5\n");
         cur_c_size_offset += sizeof(u16);
         u16 sz = *((u16 *)((u8 *)(r.Raw) + old_c_size_offset));
         total_c_size += sz;
         return true;
     } else if constexpr (std::is_same<T, MovedHandle>::value) {
+        LogStr2("fuck 6\n");
         return !r.WasHandleCopied[h_index++];
     } else if constexpr (std::is_same<T, CopiedHandle>::value) {
+        LogStr2("fuck 7\n");
         return r.WasHandleCopied[h_index++];
     } else {
+        LogStr2("fuck 8\n");
         return true;
     }
 }
