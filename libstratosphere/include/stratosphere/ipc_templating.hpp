@@ -309,23 +309,23 @@ struct Validator<std::tuple<Args...>> {
     
 	Result operator()() {
         if (r.RawSize < size_in_raw_data_with_out_pointers_for_arguments<Args... >::value) {
-            return 0xF601;
+            return 0xF602;
         }
                         
         if (r.NumBuffers != num_inoutbuffers_in_arguments<Args... >::value) {
-            return 0xF601;
+            return 0xF603;
         }
         
         if (r.NumStatics != num_inpointers_in_arguments<Args... >::value) {
-            return 0xF601;
+            return 0xF604;
         }
 
         if (r.NumStaticsOut != num_outpointers_in_arguments<Args... >::value) {
-            return 0xF601;
+            return 0xF605;
         }
         
         if (r.NumHandles != num_handles_in_arguments<Args... >::value) {
-            return 0xF601;
+            return 0xF606;
         }
         
         constexpr size_t num_pids = num_pids_in_arguments<Args... >::value;
@@ -333,7 +333,7 @@ struct Validator<std::tuple<Args...>> {
         static_assert(num_pids <= 1, "Number of PID descriptors in IpcCommandImpl cannot be > 1");
         
         if ((r.HasPid && num_pids == 0) || (!r.HasPid && num_pids)) {
-            return 0xF601;
+            return 0xF607;
         }
         
         if (((u32 *)r.Raw)[0] != SFCI_MAGIC) {
@@ -346,11 +346,11 @@ struct Validator<std::tuple<Args...>> {
         size_t total_c_size = 0;
                 
         if (!(ValidateIpcParsedCommandArgument<Args>(r, cur_rawdata_index, cur_c_size_offset, a_index, b_index, x_index, c_index, h_index, total_c_size) && ...)) {
-            return 0xF601;
+            return 0xF608;
         }
         
         if (total_c_size > pointer_buffer_size) {
-            return 0xF601;
+            return 0xF609;
         }
 
         return 0;
@@ -528,7 +528,7 @@ Result WrapIpcCommandImpl(Class *this_ptr, IpcParsedCommand& r, IpcCommand &out_
     Result rc = Validator<InArgsWithoutThis>{r, pointer_buffer_size}();
         
     if (R_FAILED(rc)) {
-        return 0xF601;
+        return rc;
     }
 
     auto args = Decoder<OutArgs, InArgsWithoutThis>::Decode(r, out_command, pointer_buffer);    

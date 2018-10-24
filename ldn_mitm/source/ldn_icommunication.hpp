@@ -20,19 +20,20 @@
 
 #include "debug.hpp"
 
-enum class LdnICommunicationCmd {
-    Read = 0,
-    Write = 1,
-    Flush = 2,
-    SetSize = 3,
-    GetSize = 4,
-    OperateRange = 5,
+enum class CommState {
+    None,
+    Initialized,
+    AccessPoint,
+    AccessPointCreated,
+    Station,
+    StationConnected,
+    Error
 };
 
 class ICommunicationInterface : public IServiceObject {
     private:
     public:
-        ICommunicationInterface() {
+        ICommunicationInterface(): state(CommState::None) {
             LogStr("ICommunicationInterface\n");
             /* ... */
         };
@@ -47,17 +48,17 @@ class ICommunicationInterface : public IServiceObject {
             /* ... */
         };
         
-        Result dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) final {
-            Result rc = 0xF601;
-            char buf[128];
-            sprintf(buf, "ICommunicationInterface::dispatch cmd_id: %" PRIu64 "\n", cmd_id);
-            LogStr(buf);
-            return rc;
-        };
+        Result dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) final;
         
         Result handle_deferred() final {
             /* TODO: Panic, we can never defer. */
             return 0;
         };
     private:
+        std::tuple<Result> return_success();        
+        std::tuple<Result> initialize(u64 unk, PidDescriptor pid);
+        std::tuple<Result> open_access_point();
+        std::tuple<Result> set_advertise_data(InPointer<u8> data1, InBuffer<u8> data2);
+        std::tuple<Result, u64> get_state();
+        CommState state;
 };
