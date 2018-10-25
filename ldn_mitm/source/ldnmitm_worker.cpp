@@ -18,13 +18,14 @@
 #include <switch.h>
 #include <stratosphere.hpp>
 #include "ldnmitm_worker.hpp"
+#include "debug.hpp"
 
 static SystemEvent *g_new_waitable_event = NULL;
 
 static HosMutex g_new_waitable_mutex;
 static HosSemaphore g_sema_new_waitable_finish;
 
-static std::unique_ptr<WaitableManager> g_worker_waiter;
+static std::unique_ptr<MultiThreadedWaitableManager> g_worker_waiter;
 
 Result LdnMitMWorker::AddWaitableCallback(void *arg, Handle *handles, size_t num_handles, u64 timeout) {
     (void)arg;
@@ -45,7 +46,7 @@ void LdnMitMWorker::Main(void *arg) {
     g_new_waitable_event = new SystemEvent(NULL, &LdnMitMWorker::AddWaitableCallback);
 
     /* Make a new waitable manager. */
-    g_worker_waiter = std::make_unique<WaitableManager>(U64_MAX);
+    g_worker_waiter = std::make_unique<MultiThreadedWaitableManager>(2, U64_MAX, 0x20000);
     g_worker_waiter->add_waitable(g_new_waitable_event);
     
     /* Service processes. */

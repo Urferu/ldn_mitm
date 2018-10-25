@@ -145,7 +145,9 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
 
 Result sys_event_callback(void *arg, Handle *handles, size_t num_handles, u64 timeout) {
     LogStr("sys_event_callback\n");
-    g_state_event->signal_event();
+    if (g_state_event) {
+        g_state_event->signal_event();
+    }
     return 0;
 }
 
