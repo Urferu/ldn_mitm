@@ -6,6 +6,7 @@
 enum class LdnCommCmd {
     GetState = 0,
     GetIpv4Address = 2,
+    GetDisconnectReason = 3,
     GetSecurityParameter = 4,
     AttachStateChangeEvent = 100,
     OpenAccessPoint = 200,
@@ -32,6 +33,9 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
             break;
         case LdnCommCmd::GetIpv4Address:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::get_ipv4_address>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
+        case LdnCommCmd::GetDisconnectReason:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::get_disconnect_reason>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
         case LdnCommCmd::GetSecurityParameter:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::get_security_Parameter>(this, r, out_c, pointer_buffer, pointer_buffer_size);
@@ -119,6 +123,12 @@ std::tuple<Result, u32, u32> ICommunicationInterface::get_ipv4_address() {
     Result rc = 0;
 
     return {rc, 0x7F000001, 0xFF000000};
+}
+
+std::tuple<Result, u16> ICommunicationInterface::get_disconnect_reason() {
+    Result rc = 0;
+
+    return {rc, 1};
 }
 
 std::tuple<Result, GetSecurityParameterData> ICommunicationInterface::get_security_Parameter() {

@@ -74,6 +74,7 @@ class ICommunicationInterface : public IServiceObject {
         std::tuple<Result> initialize(u64 unk, PidDescriptor pid);
         std::tuple<Result, u64> get_state();
         std::tuple<Result, u32, u32> get_ipv4_address();
+        std::tuple<Result, u16> get_disconnect_reason();
         std::tuple<Result, GetSecurityParameterData> get_security_Parameter();
         std::tuple<Result> open_access_point();
         std::tuple<Result> create_network(CreateNetworkData data);
