@@ -11,12 +11,10 @@ enum class LdnSrvCmd {
 class LdnMitMService : public IMitMServiceObject {      
     private:
         // std::shared_ptr<IStorageInterface> romfs_storage;
-        std::shared_ptr<ICommunicationInterface> communication;
     public:
         LdnMitMService(Service *s) : IMitMServiceObject(s) {
             LogStr("LdnMitMService\n");
             /* ... */
-            communication = std::make_shared<ICommunicationInterface>();
         }
         
         static bool should_mitm(u64 pid, u64 tid) {

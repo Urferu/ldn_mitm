@@ -44,7 +44,9 @@ void LdnMitMService::postprocess(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd
 
 std::tuple<Result, OutSession<IMitMCommunicationInterface>> LdnMitMService::create_user_local_communication_service() {
     Result rc = 0;
-    // IPCSession<ICommunicationInterface> *out_session = new IPCSession<ICommunicationInterface>(communication);
+    // IPCSession<ICommunicationInterface> *out_session = new IPCSession<ICommunicationInterface>(
+    //     std::make_shared<ICommunicationInterface>()
+    // );
     IPCSession<IMitMCommunicationInterface> *out_session = new IPCSession<IMitMCommunicationInterface>(
         std::make_shared<IMitMCommunicationInterface>(forward_service)
     );

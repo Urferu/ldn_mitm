@@ -6,11 +6,14 @@ enum class LdnCommCmd {
     GetState = 0,
     GetIpv4Address = 2,
     GetSecurityParameter = 4,
+    AttachStateChangeEvent = 100,
     OpenAccessPoint = 200,
     CreateNetwork = 202,
     SetAdvertiseData = 206,
     Initialize = 400,
 };
+
+static SystemEvent *g_state_event = NULL;
 
 Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) {
     Result rc = 0xF601;
@@ -31,6 +34,9 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
             break;
         case LdnCommCmd::GetSecurityParameter:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::get_security_Parameter>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
+        case LdnCommCmd::AttachStateChangeEvent:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::attach_state_change_event>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
         case LdnCommCmd::OpenAccessPoint:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::open_access_point>(this, r, out_c, pointer_buffer, pointer_buffer_size);
@@ -68,7 +74,9 @@ std::tuple<Result> ICommunicationInterface::initialize(u64 unk, PidDescriptor pi
     sprintf(buf, "ICommunicationInterface::initialize unk: %" PRIu64 " pid: %" PRIu64 "\n", unk, pid.pid);
     LogStr(buf);
 
-    this->state = CommState::Initialized;
+    this->state_event = new SystemEvent(NULL, IEvent::PanicCallback);
+
+    this->set_state(CommState::Initialized);
 
     return {rc};
 }
@@ -76,7 +84,7 @@ std::tuple<Result> ICommunicationInterface::initialize(u64 unk, PidDescriptor pi
 std::tuple<Result> ICommunicationInterface::open_access_point() {
     Result rc = 0;
 
-    this->state = CommState::AccessPoint;
+    this->set_state(CommState::AccessPoint);
 
     return {rc};
 }
@@ -85,7 +93,7 @@ std::tuple<Result> ICommunicationInterface::create_network(CreateNetworkData dat
     Result rc = 0;
 
     LogHex(data.dat, 0x94);
-    this->state = CommState::AccessPointCreated;
+    this->set_state(CommState::AccessPointCreated);
 
     return {rc};
 }
@@ -118,4 +126,65 @@ std::tuple<Result, GetSecurityParameterData> ICommunicationInterface::get_securi
     GetSecurityParameterData data;
 
     return {rc, data};
+}
+
+std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_event() {
+    return {0, this->state_event->get_handle()};
+}
+
+Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) {
+    if (g_state_event == NULL) {
+        g_state_event = new SystemEvent(NULL, &IEvent::PanicCallback);
+    }
+    char buf[128];
+    sprintf(buf, "mitm dispatch cmd_id %" PRIu64 "\n", cmd_id);
+    LogStr(buf);
+
+    u32 *cmdbuf = (u32 *)armGetTls();
+    /* Patch PID Descriptor, if relevant. */
+    if (r.HasPid) {
+        /* [ctrl 0] [ctrl 1] [handle desc 0] [pid low] [pid high] */
+        cmdbuf[4] = 0xFFFE0000UL | (cmdbuf[4] & 0xFFFFUL);
+    }
+    if (cmd_id != 0 && cmd_id != 3) {
+        LogHex(armGetTls(), 0x100);
+    }
+    Result retval = serviceIpcDispatch(&(sys_service.s));
+    if (cmd_id != 0 && cmd_id != 3) {
+        LogHex(armGetTls(), 0x100);
+    }
+
+    if (R_SUCCEEDED(retval)) {
+        if (r.IsDomainRequest) { 
+            /* We never work with out object ids, so this should be fine. */
+            ipcParseDomainResponse(&cur_out_r, 0);
+        } else {
+            ipcParse(&cur_out_r);
+        }
+
+        struct {
+            u64 magic;
+            u64 result;
+            u64 state;
+        } *resp = (decltype(resp))cur_out_r.Raw;
+
+        if (cmd_id == 0) {
+            sprintf(buf, "state %" PRIu64 "\n", resp->state);
+            LogStr(buf);
+        }
+        if (cmd_id == 100) {
+            sprintf(buf, "cmd 100 %x\n", cur_out_r.Handles[0]);
+            LogStr(buf);
+            resp->result = 0xFFFF;
+        }
+
+        retval = resp->result;
+    }
+
+    if (cmd_id != 0 && cmd_id != 3) {
+        sprintf(buf, "mitm dispatch rc %u\n", retval);
+        LogStr(buf);
+    }
+
+    return retval;
 }

@@ -40,8 +40,9 @@ struct GetSecurityParameterData {
 class ICommunicationInterface : public IServiceObject {
     private:
         CommState state;
+        SystemEvent *state_event;
     public:
-        ICommunicationInterface(): state(CommState::None) {
+        ICommunicationInterface(): state(CommState::None), state_event(nullptr) {
             LogStr("ICommunicationInterface\n");
             /* ... */
         };
@@ -63,6 +64,12 @@ class ICommunicationInterface : public IServiceObject {
             return 0;
         };
     private:
+        void set_state(CommState new_state) {
+            this->state = new_state;
+            if (this->state_event) {
+                this->state_event.signal_event();
+            }
+        }
         std::tuple<Result> return_success();        
         std::tuple<Result> initialize(u64 unk, PidDescriptor pid);
         std::tuple<Result, u64> get_state();
@@ -71,6 +78,7 @@ class ICommunicationInterface : public IServiceObject {
         std::tuple<Result> open_access_point();
         std::tuple<Result> create_network(CreateNetworkData data);
         std::tuple<Result> set_advertise_data(InPointer<u8> data1, InBuffer<u8> data2);
+        std::tuple<Result, CopiedHandle> attach_state_change_event();
 };
 
 class IMitMCommunicationInterface : public IServiceObject {
@@ -78,13 +86,16 @@ class IMitMCommunicationInterface : public IServiceObject {
         UserLocalCommunicationService sys_service;
         IpcParsedCommand cur_out_r;
     public:
-        IMitMCommunicationInterface(Service* forward_service) {
+        IMitMCommunicationInterface(Service* forward_service): sys_service({0}) {
             LogStr("IMitMCommunicationInterface\n");
 
-            Result rc = ldnCreateUserLocalCommunicationService(forward_service, &sys_service);
+            Result rc = ldnCreateUserLocalCommunicationService(forward_service, &this->sys_service);
             if (R_FAILED(rc)) {
                 LogStr("Error ldnCreateUserLocalCommunicationService\n");
             }
+            char buf[64];
+            sprintf(buf, "handle %x\n", this->sys_service.s.handle);
+            LogStr(buf);
         };
         
         IMitMCommunicationInterface *clone() override {
@@ -96,33 +107,8 @@ class IMitMCommunicationInterface : public IServiceObject {
             LogStr("~IMitMCommunicationInterface\n");
             /* ... */
         };
-        
-        Result dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) final {
-            char buf[64];
-            sprintf(buf, "mitm dispatch cmd_id %" PRIu64 "\n", cmd_id);
-            LogStr(buf);
-            LogHex(armGetTls(), 0x100);
-            Result retval = serviceIpcDispatch(&sys_service.s);
-            LogHex(armGetTls(), 0x100);
 
-            if (R_SUCCEEDED(retval)) {
-                if (r.IsDomainRequest) { 
-                    /* We never work with out object ids, so this should be fine. */
-                    ipcParseDomainResponse(&cur_out_r, 0);
-                } else {
-                    ipcParse(&cur_out_r);
-                }
-
-                struct {
-                    u64 magic;
-                    u64 result;
-                } *resp = (decltype(resp))cur_out_r.Raw;
-
-                retval = resp->result;
-            }
-
-            return retval;
-        };
+        Result dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) final;
 
         Result handle_deferred() final {
             /* TODO: Panic, we can never defer. */
