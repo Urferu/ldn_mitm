@@ -67,7 +67,7 @@ class ICommunicationInterface : public IServiceObject {
         void set_state(CommState new_state) {
             this->state = new_state;
             if (this->state_event) {
-                this->state_event.signal_event();
+                this->state_event->signal_event();
             }
         }
         std::tuple<Result> return_success();        
@@ -85,8 +85,9 @@ class IMitMCommunicationInterface : public IServiceObject {
     private:
         UserLocalCommunicationService sys_service;
         IpcParsedCommand cur_out_r;
+        IEvent *sys_event;
     public:
-        IMitMCommunicationInterface(Service* forward_service): sys_service({0}) {
+        IMitMCommunicationInterface(Service* forward_service): sys_service({0}), sys_event(nullptr) {
             LogStr("IMitMCommunicationInterface\n");
 
             Result rc = ldnCreateUserLocalCommunicationService(forward_service, &this->sys_service);

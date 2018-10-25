@@ -1,4 +1,5 @@
 #include "ldn_icommunication.hpp"
+#include "ldnmitm_worker.hpp"
 
 // https://reswitched.github.io/SwIPC/ifaces.html#nn::ldn::detail::IUserLocalCommunicationService
 
@@ -132,6 +133,23 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
     return {0, this->state_event->get_handle()};
 }
 
+Result sys_event_callback(void *arg, Handle *handles, size_t num_handles, u64 timeout) {
+    LogStr("sys_event_callback\n");
+    g_state_event->signal_event();
+    return 0;
+}
+
+class IClientEvent : public IEvent {
+    public:
+        IClientEvent(Handle wait_h, void *a, EventCallback callback): IEvent(wait_h, a, callback) {
+            LogStr("IClientEvent\n");
+        }
+        Result signal_event() {
+            LogStr("IClientEvent::signal_event\n");
+            return 0;
+        }
+};
+
 Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) {
     if (g_state_event == NULL) {
         g_state_event = new SystemEvent(NULL, &IEvent::PanicCallback);
@@ -142,10 +160,10 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
 
     u32 *cmdbuf = (u32 *)armGetTls();
     /* Patch PID Descriptor, if relevant. */
-    if (r.HasPid) {
-        /* [ctrl 0] [ctrl 1] [handle desc 0] [pid low] [pid high] */
-        cmdbuf[4] = 0xFFFE0000UL | (cmdbuf[4] & 0xFFFFUL);
-    }
+    // if (r.HasPid) {
+    //     /* [ctrl 0] [ctrl 1] [handle desc 0] [pid low] [pid high] */
+    //     cmdbuf[4] = 0xFFFE0000UL | (cmdbuf[4] & 0xFFFFUL);
+    // }
     if (cmd_id != 0 && cmd_id != 3) {
         LogHex(armGetTls(), 0x100);
     }
@@ -155,7 +173,7 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
     }
 
     if (R_SUCCEEDED(retval)) {
-        if (r.IsDomainRequest) { 
+        if (r.IsDomainRequest) {
             /* We never work with out object ids, so this should be fine. */
             ipcParseDomainResponse(&cur_out_r, 0);
         } else {
@@ -175,7 +193,15 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         if (cmd_id == 100) {
             sprintf(buf, "cmd 100 %x\n", cur_out_r.Handles[0]);
             LogStr(buf);
-            resp->result = 0xFFFF;
+
+            this->sys_event = new IClientEvent(cur_out_r.Handles[0], NULL, sys_event_callback);
+            LdnMitMWorker::AddWaitable(this->sys_event);
+
+            cmdbuf[3] = g_state_event->get_handle();
+            // cur_out_r.Handles[0] = g_state_event->get_handle();
+            LogHex(armGetTls(), 0x100);
+
+            LogStr("end 100\n");
         }
 
         retval = resp->result;
