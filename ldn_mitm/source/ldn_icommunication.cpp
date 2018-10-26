@@ -113,10 +113,10 @@ std::tuple<Result> ICommunicationInterface::set_advertise_data(InPointer<u8> dat
     return {rc};
 }
 
-std::tuple<Result, u64> ICommunicationInterface::get_state() {
+std::tuple<Result, u32> ICommunicationInterface::get_state() {
     Result rc = 0;
 
-    return {rc, static_cast<u64>(this->state)};
+    return {rc, static_cast<u32>(this->state)};
 }
 
 std::tuple<Result, u32, u32> ICommunicationInterface::get_ipv4_address() {
@@ -143,8 +143,10 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
     return {0, this->state_event->get_handle()};
 }
 
-Result sys_event_callback(void *arg, Handle *handles, size_t num_handles, u64 timeout) {
-    LogStr("sys_event_callback\n");
+Result IClientEvent::handle_signaled(u64 timeout) {
+    char buf[64];
+    sprintf(buf, "sys_event_callback %p\n", g_state_event);
+    LogStr(buf);
     if (g_state_event) {
         LogStr("fire\n");
         g_state_event->signal_event();
@@ -154,35 +156,26 @@ Result sys_event_callback(void *arg, Handle *handles, size_t num_handles, u64 ti
     return 0;
 }
 
-class IClientEvent : public IEvent {
-    public:
-        IClientEvent(Handle wait_h, void *a, EventCallback callback): IEvent(wait_h, a, callback) {
-            LogStr("IClientEvent\n");
-        }
-        Result signal_event() {
-            LogStr("IClientEvent::signal_event\n");
-            return 0;
-        }
-};
-
 Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) {
     if (g_state_event == NULL) {
         g_state_event = new SystemEvent(NULL, &IEvent::PanicCallback);
     }
     char buf[128];
-    sprintf(buf, "mitm dispatch cmd_id %" PRIu64 "\n", cmd_id);
-    LogStr(buf);
 
-    u32 *cmdbuf = (u32 *)armGetTls();
+    // u32 *cmdbuf = (u32 *)armGetTls();
     /* Patch PID Descriptor, if relevant. */
     // if (r.HasPid) {
     //     /* [ctrl 0] [ctrl 1] [handle desc 0] [pid low] [pid high] */
     //     cmdbuf[4] = 0xFFFE0000UL | (cmdbuf[4] & 0xFFFFUL);
     // }
     if (cmd_id != 0 && cmd_id != 3) {
+        sprintf(buf, "mitm dispatch cmd_id %" PRIu64 "\n", cmd_id);
+        LogStr(buf);
         LogHex(armGetTls(), 0x100);
     }
     Result retval = serviceIpcDispatch(&(sys_service.s));
+    u8 backup[0x100];
+    memcpy(backup, armGetTls(), 0x100);
     if (cmd_id != 0 && cmd_id != 3) {
         LogHex(armGetTls(), 0x100);
     }
@@ -198,26 +191,35 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         struct {
             u64 magic;
             u64 result;
-            u64 state;
+            u32 state;
         } *resp = (decltype(resp))cur_out_r.Raw;
 
         if (cmd_id == 0) {
-            sprintf(buf, "state %" PRIu64 "\n", resp->state);
+            sprintf(buf, "state %" PRIu64 " %" PRIu32 "\n", resp->result, resp->state);
             LogStr(buf);
         }
-        if (cmd_id == 100) {
-            sprintf(buf, "cmd 100 %x\n", cur_out_r.Handles[0]);
+        if (cmd_id == 3) {
+            struct {
+                u64 magic;
+                u64 result;
+                u16 reason;
+            } *r2 = (decltype(r2))cur_out_r.Raw;
+            sprintf(buf, "reason %" PRIu64 " %" PRIu16 "\n", r2->result, r2->reason);
             LogStr(buf);
-
-            this->sys_event = new IClientEvent(cur_out_r.Handles[0], NULL, sys_event_callback);
-            LdnMitMWorker::AddWaitable(this->sys_event);
-
-            cmdbuf[3] = g_state_event->get_handle();
-            // cur_out_r.Handles[0] = g_state_event->get_handle();
-            LogHex(armGetTls(), 0x100);
-
-            LogStr("end 100\n");
         }
+        // if (cmd_id == 100) {
+        //     sprintf(buf, "cmd 100 %x\n", cur_out_r.Handles[0]);
+        //     LogStr(buf);
+
+        //     this->sys_event = new IClientEvent(cur_out_r.Handles[0]);
+        //     LdnMitMWorker::AddWaitable(this->sys_event);
+
+        //     cmdbuf[3] = g_state_event->get_handle();
+        //     // cur_out_r.Handles[0] = g_state_event->get_handle();
+        //     LogHex(armGetTls(), 0x100);
+
+        //     LogStr("end 100\n");
+        // }
 
         retval = resp->result;
     }
@@ -227,5 +229,6 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         LogStr(buf);
     }
 
+    memcpy(armGetTls(), backup, 0x100);
     return retval;
 }

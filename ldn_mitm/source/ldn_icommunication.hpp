@@ -37,6 +37,18 @@ struct GetSecurityParameterData {
     u8 dat[0x20];
 };
 
+class IClientEvent : public IEvent {
+    public:
+        IClientEvent(Handle wait_h): IEvent(wait_h, nullptr, nullptr) {
+            LogStr("IClientEvent\n");
+        }
+        Result signal_event() {
+            LogStr("IClientEvent::signal_event\n");
+            return 0;
+        }
+        Result handle_signaled(u64 timeout);
+};
+
 class ICommunicationInterface : public IServiceObject {
     private:
         CommState state;
@@ -72,7 +84,7 @@ class ICommunicationInterface : public IServiceObject {
         }
         std::tuple<Result> return_success();        
         std::tuple<Result> initialize(u64 unk, PidDescriptor pid);
-        std::tuple<Result, u64> get_state();
+        std::tuple<Result, u32> get_state();
         std::tuple<Result, u32, u32> get_ipv4_address();
         std::tuple<Result, u16> get_disconnect_reason();
         std::tuple<Result, GetSecurityParameterData> get_security_Parameter();
@@ -86,7 +98,7 @@ class IMitMCommunicationInterface : public IServiceObject {
     private:
         UserLocalCommunicationService sys_service;
         IpcParsedCommand cur_out_r;
-        IEvent *sys_event;
+        IClientEvent *sys_event;
     public:
         IMitMCommunicationInterface(Service* forward_service): sys_service({0}), sys_event(nullptr) {
             LogStr("IMitMCommunicationInterface\n");
@@ -120,4 +132,5 @@ class IMitMCommunicationInterface : public IServiceObject {
         IMitMCommunicationInterface(UserLocalCommunicationService s): sys_service(s) {
             /* ... */
         };
+        static Result sys_event_callback(void *arg, Handle *handles, size_t num_handles, u64 timeout);
 };
