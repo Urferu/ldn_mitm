@@ -37,14 +37,18 @@ struct GetSecurityParameterData {
     u8 dat[0x20];
 };
 
-class IClientEvent : public IEvent {
+class StateWaiter final : public IWaitable {
+    private:
+        Handle wait_h;
     public:
-        IClientEvent(Handle wait_h): IEvent(wait_h, nullptr, nullptr) {
+        StateWaiter(Handle h) : wait_h(h) {
             LogStr("IClientEvent\n");
         }
-        Result signal_event() {
-            LogStr("IClientEvent::signal_event\n");
-            return 0;
+        Handle get_handle() override {
+            return this->wait_h;
+        }
+        void handle_deferred() {
+            LogStr("IClientEvent::handle_deferred\n");
         }
         Result handle_signaled(u64 timeout);
 };
@@ -79,6 +83,7 @@ class ICommunicationInterface : public IServiceObject {
         void set_state(CommState new_state) {
             this->state = new_state;
             if (this->state_event) {
+                LogStr("state_event signal_event\n");
                 this->state_event->signal_event();
             }
         }
@@ -98,7 +103,7 @@ class ICommunicationInterface : public IServiceObject {
 class IMitMCommunicationInterface : public IServiceObject {
     private:
         UserLocalCommunicationService sys_service;
-        IClientEvent *sys_event;
+        StateWaiter *sys_event;
     public:
         IMitMCommunicationInterface(UserLocalCommunicationService s): sys_service(s), sys_event(nullptr) {
             LogStr("IMitMCommunicationInterface\n");

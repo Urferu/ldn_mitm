@@ -20,6 +20,9 @@
 #include "debug.h"
 
 const size_t TlsBackupSize = 0x100;
+#define BACKUP_TLS() u8 _tls_backup[TlsBackupSize];memcpy(_tls_backup, armGetTls(), TlsBackupSize);
+#define RESTORE_TLS() memcpy(armGetTls(), _tls_backup, TlsBackupSize);
+
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
 void Reboot() {
     /* ... */
@@ -56,13 +59,11 @@ void LogHex(const void *data, int size) {
 
 void LogStr(const char *str) {
     (void)(str);
-    u8 backup[TlsBackupSize];
-    void *tls = armGetTls();
-    memcpy(backup, tls, TlsBackupSize);
+    BACKUP_TLS();
     FILE *file = fopen("sdmc:/space.log", "ab+");
     fwrite(str, 1, strlen(str), file);
     fclose(file);
-    memcpy(tls, backup, TlsBackupSize);
+    RESTORE_TLS();
 }
 
 
@@ -101,6 +102,7 @@ void fatalLater(Result err)
     svcCloseHandle(srv);
 }
 bool GetCurrentTime(u64 *out) {
+    BACKUP_TLS();
     *out = 0;
     
     /* Verify that pcv isn't dead. */
@@ -120,5 +122,7 @@ bool GetCurrentTime(u64 *out) {
         }
         timeExit();
     }
+
+    RESTORE_TLS();
     return success;
 }

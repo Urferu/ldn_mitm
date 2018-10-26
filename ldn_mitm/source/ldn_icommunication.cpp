@@ -21,7 +21,9 @@ static SystemEvent *g_state_event = NULL;
 Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) {
     Result rc = 0xF601;
     char buf[128];
-    sprintf(buf, "ICommunicationInterface::dispatch cmd_id: %" PRIu64 "\n", cmd_id);
+    u64 t;
+    GetCurrentTime(&t);
+    sprintf(buf, "[%" PRIu64 "] ICommunicationInterface::dispatch cmd_id: %" PRIu64 "\n", t, cmd_id);
     LogStr(buf);
 
     if (static_cast<LdnCommCmd>(cmd_id) == LdnCommCmd::CreateNetwork) {
@@ -64,7 +66,8 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
             break;
     }
 
-    sprintf(buf, "ICommunicationInterface::dispatch rc: %x\n", rc);
+    GetCurrentTime(&t);
+    sprintf(buf, "[%" PRIu64 "] ICommunicationInterface::dispatch rc: %x\n", t, rc);
     LogStr(buf);
 
     return rc;
@@ -83,9 +86,8 @@ std::tuple<Result> ICommunicationInterface::initialize(u64 unk, PidDescriptor pi
     sprintf(buf, "ICommunicationInterface::initialize unk: %" PRIu64 " pid: %" PRIu64 "\n", unk, pid.pid);
     LogStr(buf);
 
-    this->state_event = new SystemEvent(NULL, IEvent::PanicCallback);
-
     this->set_state(CommState::Initialized);
+    this->state_event = new SystemEvent(NULL, IEvent::PanicCallback);
 
     return {rc};
 }
@@ -133,10 +135,10 @@ std::tuple<Result> ICommunicationInterface::get_network_info(OutPointerWithServe
     Result rc = 0;
 
     char buf[128];
-    sprintf(buf, "get_network_info %p %" PRIu64 "\n", buffer.pointer, buffer.num_elements);
+    sprintf(buf, "get_network_info %p %" PRIu64 " state: %d\n", buffer.pointer, buffer.num_elements, static_cast<u32>(this->state));
     LogStr(buf);
 
-    if (this->state != CommState::AccessPointCreated || this->state != CommState::StationConnected) {
+    if (this->state != CommState::AccessPointCreated && this->state != CommState::StationConnected) {
         rc = 0x40CB; // ResultConnectionFailed
     }
 
@@ -161,9 +163,13 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
     return {0, this->state_event->get_handle()};
 }
 
-Result IClientEvent::handle_signaled(u64 timeout) {
+Result StateWaiter::handle_signaled(u64 timeout) {
+    svcClearEvent(this->get_handle());
+
+    LogHex(armGetTls(), 0x100);
     char buf[64];
     sprintf(buf, "sys_event_callback %p\n", g_state_event);
+    LogStr(buf);
     LogStr(buf);
     if (g_state_event) {
         LogStr("fire\n");
@@ -250,25 +256,31 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
             raw->result = 0;
         }
 
-        // if (cmd_id == 100) {
-        //     sprintf(buf, "cmd 100 %x\n", cur_out_r.Handles[0]);
-        //     LogStr(buf);
+        if (cmd_id == 100) {
+            sprintf(buf, "cmd 100 %x\n", cur_out_r.Handles[0]);
+            LogStr(buf);
 
-        //     this->sys_event = new IClientEvent(cur_out_r.Handles[0]);
-        //     LdnMitMWorker::AddWaitable(this->sys_event);
+            this->sys_event = new StateWaiter(cur_out_r.Handles[0]);
+            LdnMitMWorker::AddWaitable(this->sys_event);
 
-        //     cmdbuf[3] = g_state_event->get_handle();
-        //     // cur_out_r.Handles[0] = g_state_event->get_handle();
-        //     LogHex(armGetTls(), 0x100);
+            ipcSendHandleCopy(&out_c, g_state_event->get_handle());
+            struct {
+                u64 magic;
+                u64 result;
+            } *raw = (decltype(raw))serviceIpcPrepareHeader(&sys_service.s, &out_c, sizeof(*raw));
+            raw->magic = SFCO_MAGIC;
+            raw->result = 0;
 
-        //     LogStr("end 100\n");
-        // }
+            LogHex(armGetTls(), 0x100);
+
+            LogStr("end 100\n");
+        }
 
         retval = resp->result;
     }
 
     GetCurrentTime(&t);
-    sprintf(buf, "[%" PRIu64 "]mitm dispatch rc %u\n", t, retval);
+    sprintf(buf, "[%" PRIu64 "] mitm dispatch rc %u\n", t, retval);
     LogStr(buf);
 
     memcpy(armGetTls(), backup, 0x100);
