@@ -20,7 +20,7 @@
 
 #include <stratosphere.hpp>
 
-#include "debug.hpp"
+#include "debug.h"
 
 class IMitMServiceObject : public IServiceObject {
     protected:

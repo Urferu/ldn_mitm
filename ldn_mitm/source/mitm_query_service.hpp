@@ -18,7 +18,7 @@
 #include <switch.h>
 #include <stratosphere/iserviceobject.hpp>
 
-#include "debug.hpp"
+#include "debug.h"
 
 enum MitMQueryServiceCommand {
     MQS_Cmd_ShouldMitm = 65000,

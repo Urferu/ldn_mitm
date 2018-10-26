@@ -188,7 +188,16 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
     if (cmd_id != 0 && cmd_id != 1 && cmd_id != 3) {
         LogHex(armGetTls(), 0x100);
     }
-    Result retval = serviceIpcDispatch(&(sys_service.s));
+
+    Result retval = 0xF601;
+    if (cmd_id == 1) {
+        u8 info[0x480] = {0};
+        retval = ldnGetNetworkInfo(&sys_service, &info);
+        sprintf(buf, "ldnGetNetworkInfo %d %lu\n", retval, sizeof(decltype(info)));
+        LogStr(buf);
+    } else {
+        retval = serviceIpcDispatch(&(sys_service.s));
+    }
     u8 backup[0x100];
     memcpy(backup, armGetTls(), 0x100);
     if (cmd_id != 0 && cmd_id != 1 && cmd_id != 3) {
@@ -212,8 +221,7 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         if (cmd_id == 0) {
             sprintf(buf, "state %" PRIu64 " %" PRIu32 "\n", resp->result, resp->state);
             LogStr(buf);
-        }
-        if (cmd_id == 3) {
+        } else if (cmd_id == 3) {
             struct {
                 u64 magic;
                 u64 result;
@@ -221,7 +229,20 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
             } *r2 = (decltype(r2))cur_out_r.Raw;
             sprintf(buf, "reason %" PRIu64 " %" PRIu16 "\n", r2->result, r2->reason);
             LogStr(buf);
+        } else if (cmd_id == 1) {
+            sprintf(buf, "cmd 1 statics: %" PRIu64 " 0 ptr %p size %" PRIu64 "\n",
+                cur_out_r.NumStatics, cur_out_r.Statics[0], cur_out_r.StaticSizes[0]);
+            LogStr(buf);
+
+            ipcAddSendStatic(&out_c, cur_out_r.Statics[0], cur_out_r.StaticSizes[0], 0);
+            struct {
+                u64 magic;
+                u64 result;
+            } *raw = (decltype(raw))serviceIpcPrepareHeader(&sys_service.s, &out_c, sizeof(*raw));
+            raw->magic = SFCO_MAGIC;
+            raw->result = 0;
         }
+
         // if (cmd_id == 100) {
         //     sprintf(buf, "cmd 100 %x\n", cur_out_r.Handles[0]);
         //     LogStr(buf);

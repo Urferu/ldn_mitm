@@ -2,7 +2,9 @@
 #include <switch.h>
 #include "imitmserviceobject.hpp"
 #include "ldn_icommunication.hpp"
-#include "debug.hpp"
+#include "debug.h"
+
+#define USE_MITM 1
 
 enum class LdnSrvCmd {
     CreateUserLocalCommunicationService = 0,
@@ -40,7 +42,11 @@ class LdnMitMService : public IMitMServiceObject {
     
     protected:
         /* Overridden commands. */
+#if USE_MITM
+        std::tuple<Result, OutSession<IMitMCommunicationInterface>> create_user_local_communication_service();
+#else
         std::tuple<Result, OutSession<ICommunicationInterface>> create_user_local_communication_service();
+#endif
         // std::tuple<Result, OutSession<IStorageInterface>> open_data_storage_by_current_process();
         // std::tuple<Result, OutSession<IStorageInterface>> open_data_storage_by_data_id(u64 storage_id, u64 data_id);
 };

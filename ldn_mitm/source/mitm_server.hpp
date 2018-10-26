@@ -22,7 +22,7 @@
 #include "sm_mitm.h"
 #include "mitm_session.hpp"
 
-#include "debug.hpp"
+#include "debug.h"
 
 template <typename T>
 class MitMSession;

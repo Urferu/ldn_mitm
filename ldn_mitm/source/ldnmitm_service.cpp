@@ -18,7 +18,7 @@
 #include "ldnmitm_service.hpp"
 
 #include "mitm_query_service.hpp"
-#include "debug.hpp"
+#include "debug.h"
 #include "debug_ipcsession.hpp"
 #include "ldnmitm_worker.hpp"
 #include "ldn_shim.h"
@@ -44,30 +44,37 @@ void LdnMitMService::postprocess(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd
     return;
 }
 
+#if USE_MITM
+std::tuple<Result, OutSession<IMitMCommunicationInterface>> LdnMitMService::create_user_local_communication_service() {
+#else
 std::tuple<Result, OutSession<ICommunicationInterface>> LdnMitMService::create_user_local_communication_service() {
+#endif
     Result rc = 0;
+#if USE_MITM
+    UserLocalCommunicationService s;
+    rc = ldnCreateUserLocalCommunicationService(forward_service, &s);
+    if (R_FAILED(rc)) {
+        LogStr("Error ldnCreateUserLocalCommunicationService\n");
+    }
+    size_t pointer_buffer_size = 0;
+    if (R_FAILED(ipcQueryPointerBufferSize(s.s.handle, &pointer_buffer_size))) {
+        /* TODO: Panic. */
+        LogStr("Error ipcQueryPointerBufferSize\n");
+    }
+    char buf[64];
+    sprintf(buf, "handle %x size %" PRIu64 "\n", s.s.handle, pointer_buffer_size);
+    LogStr(buf);
+
+    DebugIPCSession<IMitMCommunicationInterface> *out_session = new DebugIPCSession<IMitMCommunicationInterface>(
+        std::make_shared<IMitMCommunicationInterface>(s),
+        pointer_buffer_size
+    );
+#else
     IPCSession<ICommunicationInterface> *out_session = new IPCSession<ICommunicationInterface>(
         std::make_shared<ICommunicationInterface>(),
         0x1000
     );
-    // UserLocalCommunicationService s;
-    // rc = ldnCreateUserLocalCommunicationService(forward_service, &s);
-    // if (R_FAILED(rc)) {
-    //     LogStr("Error ldnCreateUserLocalCommunicationService\n");
-    // }
-    // size_t pointer_buffer_size = 0;
-    // if (R_FAILED(ipcQueryPointerBufferSize(s.s.handle, &pointer_buffer_size))) {
-    //     /* TODO: Panic. */
-    //     LogStr("Error ipcQueryPointerBufferSize\n");
-    // }
-    // char buf[64];
-    // sprintf(buf, "handle %x size %" PRIu64 "\n", s.s.handle, pointer_buffer_size);
-    // LogStr(buf);
-
-    // DebugIPCSession<IMitMCommunicationInterface> *out_session = new DebugIPCSession<IMitMCommunicationInterface>(
-    //     std::make_shared<IMitMCommunicationInterface>(s),
-    //     pointer_buffer_size
-    // );
+#endif
 
     LdnMitMWorker::AddWaitable(out_session);
 

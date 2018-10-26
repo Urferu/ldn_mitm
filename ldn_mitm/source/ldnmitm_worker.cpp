@@ -18,7 +18,7 @@
 #include <switch.h>
 #include <stratosphere.hpp>
 #include "ldnmitm_worker.hpp"
-#include "debug.hpp"
+#include "debug.h"
 
 static SystemEvent *g_new_waitable_event = NULL;
 

@@ -15,12 +15,12 @@
  */
  
 #include <switch.h>
-#include <stratosphere.hpp>
-#include <cstring>
-#include "debug.hpp"
+#include <string.h>
+#include <stdio.h>
+#include "debug.h"
 
 const size_t TlsBackupSize = 0x100;
-
+#define MIN(a, b) (((a) > (b)) ? (b) : (a))
 void Reboot() {
     /* ... */
     LogStr("Reboot\n");
@@ -44,7 +44,7 @@ void LogHex(const void *data, int size) {
     sprintf(buf, "Bin Log: %d (%p)\n", size, data);
     LogStr(buf);
     for (int i = 0; i < size; i += 16) {
-        int s = std::min(size - i, 16);
+        int s = MIN(size - i, 16);
         buf[0] = 0;
         for (int j = 0; j < s; j++) {
             sprintf(buf + strlen(buf), "%02x", dat[i + j]);
@@ -57,7 +57,7 @@ void LogHex(const void *data, int size) {
 void LogStr(const char *str) {
     (void)(str);
     u8 backup[TlsBackupSize];
-    auto tls = armGetTls();
+    void *tls = armGetTls();
     memcpy(backup, tls, TlsBackupSize);
     FILE *file = fopen("sdmc:/space.log", "ab+");
     fwrite(str, 1, strlen(str), file);

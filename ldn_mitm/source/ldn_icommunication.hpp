@@ -18,7 +18,7 @@
 #include <switch.h>
 #include <stratosphere.hpp>
 #include "ldn_shim.h"
-#include "debug.hpp"
+#include "debug.h"
 
 enum class CommState {
     None,

@@ -18,8 +18,16 @@
 #include <switch.h>
 #include <inttypes.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void Reboot();
 void Log(const void *data, int size);
 void LogHex(const void *data, int size);
 void LogStr(const char *str);
 void fatalLater(Result err);
+
+#ifdef __cplusplus
+}
+#endif

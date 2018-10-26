@@ -22,7 +22,7 @@
 #include "mitm_query_service.hpp"
 #include "mitm_server.hpp"
 
-#include "debug.hpp"
+#include "debug.h"
 
 template <typename T>
 class MitMServer;
