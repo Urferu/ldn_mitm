@@ -85,6 +85,7 @@ class ICommunicationInterface : public IServiceObject {
         std::tuple<Result> return_success();        
         std::tuple<Result> initialize(u64 unk, PidDescriptor pid);
         std::tuple<Result, u32> get_state();
+        std::tuple<Result> get_network_info(OutPointerWithServerSize<u8, 0x480> buffer);
         std::tuple<Result, u32, u32> get_ipv4_address();
         std::tuple<Result, u16> get_disconnect_reason();
         std::tuple<Result, GetSecurityParameterData> get_security_Parameter();
@@ -97,19 +98,10 @@ class ICommunicationInterface : public IServiceObject {
 class IMitMCommunicationInterface : public IServiceObject {
     private:
         UserLocalCommunicationService sys_service;
-        IpcParsedCommand cur_out_r;
         IClientEvent *sys_event;
     public:
-        IMitMCommunicationInterface(Service* forward_service): sys_service({0}), sys_event(nullptr) {
+        IMitMCommunicationInterface(UserLocalCommunicationService s): sys_service(s), sys_event(nullptr) {
             LogStr("IMitMCommunicationInterface\n");
-
-            Result rc = ldnCreateUserLocalCommunicationService(forward_service, &this->sys_service);
-            if (R_FAILED(rc)) {
-                LogStr("Error ldnCreateUserLocalCommunicationService\n");
-            }
-            char buf[64];
-            sprintf(buf, "handle %x\n", this->sys_service.s.handle);
-            LogStr(buf);
         };
         
         IMitMCommunicationInterface *clone() override {
@@ -129,8 +121,8 @@ class IMitMCommunicationInterface : public IServiceObject {
             return 0;
         };
     private:
-        IMitMCommunicationInterface(UserLocalCommunicationService s): sys_service(s) {
-            /* ... */
-        };
+        // IMitMCommunicationInterface(UserLocalCommunicationService s): sys_service(s) {
+        //     /* ... */
+        // };
         static Result sys_event_callback(void *arg, Handle *handles, size_t num_handles, u64 timeout);
 };

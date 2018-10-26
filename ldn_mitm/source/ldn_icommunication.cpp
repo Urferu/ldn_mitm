@@ -5,6 +5,7 @@
 
 enum class LdnCommCmd {
     GetState = 0,
+    GetNetworkInfo = 1,
     GetIpv4Address = 2,
     GetDisconnectReason = 3,
     GetSecurityParameter = 4,
@@ -30,6 +31,9 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
     switch (static_cast<LdnCommCmd>(cmd_id)) {
         case LdnCommCmd::GetState:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::get_state>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
+        case LdnCommCmd::GetNetworkInfo:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::get_network_info>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
         case LdnCommCmd::GetIpv4Address:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::get_ipv4_address>(this, r, out_c, pointer_buffer, pointer_buffer_size);
@@ -125,6 +129,16 @@ std::tuple<Result, u32, u32> ICommunicationInterface::get_ipv4_address() {
     return {rc, 0x7F000001, 0xFF000000};
 }
 
+std::tuple<Result> ICommunicationInterface::get_network_info(OutPointerWithServerSize<u8, 0x480> buffer) {
+    Result rc = 0;
+
+    char buf[128];
+    sprintf(buf, "get_network_info %p %" PRIu64 "\n", buffer.pointer, buffer.num_elements);
+    LogStr(buf);
+
+    return {rc};
+}
+
 std::tuple<Result, u16> ICommunicationInterface::get_disconnect_reason() {
     Result rc = 0;
 
@@ -161,6 +175,7 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         g_state_event = new SystemEvent(NULL, &IEvent::PanicCallback);
     }
     char buf[128];
+    IpcParsedCommand cur_out_r;
 
     // u32 *cmdbuf = (u32 *)armGetTls();
     /* Patch PID Descriptor, if relevant. */
@@ -168,15 +183,15 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
     //     /* [ctrl 0] [ctrl 1] [handle desc 0] [pid low] [pid high] */
     //     cmdbuf[4] = 0xFFFE0000UL | (cmdbuf[4] & 0xFFFFUL);
     // }
-    if (cmd_id != 0 && cmd_id != 3) {
-        sprintf(buf, "mitm dispatch cmd_id %" PRIu64 "\n", cmd_id);
-        LogStr(buf);
+    sprintf(buf, "mitm dispatch cmd_id %" PRIu64 " type %d\n", cmd_id, r.CommandType);
+    LogStr(buf);
+    if (cmd_id != 0 && cmd_id != 1 && cmd_id != 3) {
         LogHex(armGetTls(), 0x100);
     }
     Result retval = serviceIpcDispatch(&(sys_service.s));
     u8 backup[0x100];
     memcpy(backup, armGetTls(), 0x100);
-    if (cmd_id != 0 && cmd_id != 3) {
+    if (cmd_id != 0 && cmd_id != 1 && cmd_id != 3) {
         LogHex(armGetTls(), 0x100);
     }
 

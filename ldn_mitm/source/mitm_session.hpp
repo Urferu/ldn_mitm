@@ -49,6 +49,9 @@ class MitMSession final : public ISession<T> {
             if (R_FAILED(ipcQueryPointerBufferSize(forward_service.handle, &pointer_buffer_size))) {
                 /* TODO: Panic. */
             }
+            char buf[64];
+            sprintf(buf, "pointer_buffer_size %" PRIu64 "\n", pointer_buffer_size);
+            LogStr(buf);
             this->service_object = std::make_shared<T>(&forward_service);
             this->pointer_buffer.resize(pointer_buffer_size);
         }
