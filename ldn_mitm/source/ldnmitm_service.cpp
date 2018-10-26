@@ -20,10 +20,11 @@
 #include "mitm_query_service.hpp"
 #include "debug.hpp"
 #include "ldnmitm_worker.hpp"
+#include "ldn_shim.h"
 
 Result LdnMitMService::dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) {
     char buf[128];
-    sprintf(buf, "LdnMitMService::dispatch cmd_id: %" PRIu64 " is domain message %d\n", cmd_id, r.IsDomainRequest);
+    sprintf(buf, "LdnMitMService::dispatch cmd_id: %" PRIu64 "\n", cmd_id);
     LogStr(buf);
     Result rc = 0xF601;
     switch (static_cast<LdnSrvCmd>(cmd_id)) {
@@ -47,8 +48,15 @@ std::tuple<Result, OutSession<IMitMCommunicationInterface>> LdnMitMService::crea
     // IPCSession<ICommunicationInterface> *out_session = new IPCSession<ICommunicationInterface>(
     //     std::make_shared<ICommunicationInterface>()
     // );
+
+    UserLocalCommunicationService sysObj;
+    rc = ldnCreateUserLocalCommunicationService(forward_service, &sysObj);
+    if (R_FAILED(rc)) {
+        LogStr("Error ldnCreateUserLocalCommunicationService\n");
+        rc = 0xF111;
+    }
     IPCSession<IMitMCommunicationInterface> *out_session = new IPCSession<IMitMCommunicationInterface>(
-        std::make_shared<IMitMCommunicationInterface>(forward_service)
+        std::make_shared<IMitMCommunicationInterface>(sysObj)
     );
 
     LdnMitMWorker::AddWaitable(out_session);

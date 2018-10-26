@@ -10,7 +10,6 @@ enum class LdnSrvCmd {
 
 class LdnMitMService : public IMitMServiceObject {      
     private:
-        // std::shared_ptr<IStorageInterface> romfs_storage;
     public:
         LdnMitMService(Service *s) : IMitMServiceObject(s) {
             LogStr("LdnMitMService\n");
@@ -41,6 +40,4 @@ class LdnMitMService : public IMitMServiceObject {
     protected:
         /* Overridden commands. */
         std::tuple<Result, OutSession<IMitMCommunicationInterface>> create_user_local_communication_service();
-        // std::tuple<Result, OutSession<IStorageInterface>> open_data_storage_by_current_process();
-        // std::tuple<Result, OutSession<IStorageInterface>> open_data_storage_by_data_id(u64 storage_id, u64 data_id);
 };
