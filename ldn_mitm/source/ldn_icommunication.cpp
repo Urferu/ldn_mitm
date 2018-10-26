@@ -136,6 +136,10 @@ std::tuple<Result> ICommunicationInterface::get_network_info(OutPointerWithServe
     sprintf(buf, "get_network_info %p %" PRIu64 "\n", buffer.pointer, buffer.num_elements);
     LogStr(buf);
 
+    if (this->state != CommState::AccessPointCreated || this->state != CommState::StationConnected) {
+        rc = 0x40CB; // ResultConnectionFailed
+    }
+
     return {rc};
 }
 
@@ -183,7 +187,9 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
     //     /* [ctrl 0] [ctrl 1] [handle desc 0] [pid low] [pid high] */
     //     cmdbuf[4] = 0xFFFE0000UL | (cmdbuf[4] & 0xFFFFUL);
     // }
-    sprintf(buf, "mitm dispatch cmd_id %" PRIu64 " type %d\n", cmd_id, r.CommandType);
+    u64 t = 0;
+    GetCurrentTime(&t);
+    sprintf(buf, "[%" PRIu64 "] mitm dispatch cmd_id %" PRIu64 " type %d\n", t, cmd_id, r.CommandType);
     LogStr(buf);
     if (cmd_id != 0 && cmd_id != 1 && cmd_id != 3) {
         LogHex(armGetTls(), 0x100);
@@ -195,6 +201,7 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         retval = ldnGetNetworkInfo(&sys_service, &info);
         sprintf(buf, "ldnGetNetworkInfo %d %lu\n", retval, sizeof(decltype(info)));
         LogStr(buf);
+        LogHex(info, 0x480);
     } else {
         retval = serviceIpcDispatch(&(sys_service.s));
     }
@@ -260,10 +267,9 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         retval = resp->result;
     }
 
-    if (cmd_id != 0 && cmd_id != 3) {
-        sprintf(buf, "mitm dispatch rc %u\n", retval);
-        LogStr(buf);
-    }
+    GetCurrentTime(&t);
+    sprintf(buf, "[%" PRIu64 "]mitm dispatch rc %u\n", t, retval);
+    LogStr(buf);
 
     memcpy(armGetTls(), backup, 0x100);
     return retval;

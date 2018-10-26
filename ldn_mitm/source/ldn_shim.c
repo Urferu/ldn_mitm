@@ -10,7 +10,6 @@ Result ldnGetNetworkInfo(UserLocalCommunicationService* s, void* out) {
     } *raw;
     ipcAddRecvStatic(&c, out, 0x480, 0);
     raw = serviceIpcPrepareHeader(&s->s, &c, sizeof(*raw));
-    LogStr("ldnGetNetworkInfo\n");
     LogHex(armGetTls(), 0x100);
 
     raw->magic = SFCI_MAGIC;

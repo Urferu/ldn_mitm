@@ -27,6 +27,7 @@ void Log(const void *data, int size);
 void LogHex(const void *data, int size);
 void LogStr(const char *str);
 void fatalLater(Result err);
+bool GetCurrentTime(u64 *out);
 
 #ifdef __cplusplus
 }

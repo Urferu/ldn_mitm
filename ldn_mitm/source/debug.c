@@ -100,3 +100,25 @@ void fatalLater(Result err)
     ipcDispatch(srv);
     svcCloseHandle(srv);
 }
+bool GetCurrentTime(u64 *out) {
+    *out = 0;
+    
+    /* Verify that pcv isn't dead. */
+    {
+        Handle dummy;
+        if (R_SUCCEEDED(smRegisterService(&dummy, "time:s", false, 0x20))) {
+            svcCloseHandle(dummy);
+            return false;
+        }
+    }
+    
+    /* Try to get the current time. */
+    bool success = false;
+    if (R_SUCCEEDED(timeInitialize())) {
+        if (R_SUCCEEDED(timeGetCurrentTime(TimeType_LocalSystemClock, out))) {
+            success = true;
+        }
+        timeExit();
+    }
+    return success;
+}
