@@ -17,7 +17,6 @@
 #pragma once
 #include <switch.h>
 #include <stratosphere.hpp>
-#include "imitmserviceobject.hpp"
 #include "ldn_shim.h"
 #include "debug.hpp"
 
@@ -95,27 +94,28 @@ class ICommunicationInterface : public IServiceObject {
         std::tuple<Result, CopiedHandle> attach_state_change_event();
 };
 
-class IMitMCommunicationInterface : public IMitMServiceObject {
+class IMitMCommunicationInterface : public IServiceObject {
     private:
-        UserLocalCommunicationService service;
+        UserLocalCommunicationService sys_service;
+        IpcParsedCommand cur_out_r;
         IClientEvent *sys_event;
     public:
-        IMitMCommunicationInterface(UserLocalCommunicationService &s): IMitMServiceObject(nullptr), service(s), sys_event(nullptr) {
-            forward_service = &service.s;
+        IMitMCommunicationInterface(Service* forward_service): sys_service({0}), sys_event(nullptr) {
             LogStr("IMitMCommunicationInterface\n");
 
+            Result rc = ldnCreateUserLocalCommunicationService(forward_service, &this->sys_service);
+            if (R_FAILED(rc)) {
+                LogStr("Error ldnCreateUserLocalCommunicationService\n");
+            }
             char buf[64];
-            sprintf(buf, "handle %x %x\n", forward_service->handle, forward_service->object_id);
+            sprintf(buf, "handle %x\n", this->sys_service.s.handle);
             LogStr(buf);
         };
         
         IMitMCommunicationInterface *clone() override {
             LogStr("IMitMCommunicationInterface::clone\n");
-            return new IMitMCommunicationInterface(service);
+            return new IMitMCommunicationInterface(sys_service);
         };
-        void clone_to(void *o) override {
-            // IMitMCommunicationInterface *other = (IMitMCommunicationInterface *)o;
-        }
         
         ~IMitMCommunicationInterface() {
             LogStr("~IMitMCommunicationInterface\n");
@@ -123,13 +123,14 @@ class IMitMCommunicationInterface : public IMitMServiceObject {
         };
 
         Result dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) final;
-        void postprocess(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) {
-            return;
-        }
 
         Result handle_deferred() final {
             /* TODO: Panic, we can never defer. */
             return 0;
         };
     private:
+        IMitMCommunicationInterface(UserLocalCommunicationService s): sys_service(s) {
+            /* ... */
+        };
+        static Result sys_event_callback(void *arg, Handle *handles, size_t num_handles, u64 timeout);
 };

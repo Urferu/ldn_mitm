@@ -161,78 +161,74 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         g_state_event = new SystemEvent(NULL, &IEvent::PanicCallback);
     }
     char buf[128];
-    sprintf(buf, "mitm dispatch cmd_id %" PRIu64 "\n", cmd_id);
-    LogStr(buf);
-    // LogHex(armGetTls(), 0x100);
-    // IpcParsedCommand cur_out_r;
-    // // u32 *cmdbuf = (u32 *)armGetTls();
-    // /* Patch PID Descriptor, if relevant. */
-    // // if (r.HasPid) {
-    // //     /* [ctrl 0] [ctrl 1] [handle desc 0] [pid low] [pid high] */
-    // //     cmdbuf[4] = 0xFFFE0000UL | (cmdbuf[4] & 0xFFFFUL);
-    // // }
-    // if (cmd_id != 0 && cmd_id != 3) {
-    //     sprintf(buf, "mitm dispatch cmd_id %" PRIu64 "\n", cmd_id);
-    //     LogStr(buf);
-    //     LogHex(armGetTls(), 0x100);
+
+    // u32 *cmdbuf = (u32 *)armGetTls();
+    /* Patch PID Descriptor, if relevant. */
+    // if (r.HasPid) {
+    //     /* [ctrl 0] [ctrl 1] [handle desc 0] [pid low] [pid high] */
+    //     cmdbuf[4] = 0xFFFE0000UL | (cmdbuf[4] & 0xFFFFUL);
     // }
-    // Result retval = serviceIpcDispatch(&(sys_service.s));
-    // u8 backup[0x100];
-    // memcpy(backup, armGetTls(), 0x100);
-    // if (cmd_id != 0 && cmd_id != 3) {
-    //     LogHex(armGetTls(), 0x100);
-    // }
+    if (cmd_id != 0 && cmd_id != 3) {
+        sprintf(buf, "mitm dispatch cmd_id %" PRIu64 "\n", cmd_id);
+        LogStr(buf);
+        LogHex(armGetTls(), 0x100);
+    }
+    Result retval = serviceIpcDispatch(&(sys_service.s));
+    u8 backup[0x100];
+    memcpy(backup, armGetTls(), 0x100);
+    if (cmd_id != 0 && cmd_id != 3) {
+        LogHex(armGetTls(), 0x100);
+    }
 
-    // if (R_SUCCEEDED(retval)) {
-    //     if (r.IsDomainRequest) {
-    //         /* We never work with out object ids, so this should be fine. */
-    //         ipcParseDomainResponse(&cur_out_r, 0);
-    //     } else {
-    //         ipcParse(&cur_out_r);
-    //     }
+    if (R_SUCCEEDED(retval)) {
+        if (r.IsDomainRequest) {
+            /* We never work with out object ids, so this should be fine. */
+            ipcParseDomainResponse(&cur_out_r, 0);
+        } else {
+            ipcParse(&cur_out_r);
+        }
 
-    //     struct {
-    //         u64 magic;
-    //         u64 result;
-    //         u32 state;
-    //     } *resp = (decltype(resp))cur_out_r.Raw;
+        struct {
+            u64 magic;
+            u64 result;
+            u32 state;
+        } *resp = (decltype(resp))cur_out_r.Raw;
 
-    //     if (cmd_id == 0) {
-    //         sprintf(buf, "state %" PRIu64 " %" PRIu32 "\n", resp->result, resp->state);
-    //         LogStr(buf);
-    //     }
-    //     if (cmd_id == 3) {
-    //         struct {
-    //             u64 magic;
-    //             u64 result;
-    //             u16 reason;
-    //         } *r2 = (decltype(r2))cur_out_r.Raw;
-    //         sprintf(buf, "reason %" PRIu64 " %" PRIu16 "\n", r2->result, r2->reason);
-    //         LogStr(buf);
-    //     }
-    //     // if (cmd_id == 100) {
-    //     //     sprintf(buf, "cmd 100 %x\n", cur_out_r.Handles[0]);
-    //     //     LogStr(buf);
+        if (cmd_id == 0) {
+            sprintf(buf, "state %" PRIu64 " %" PRIu32 "\n", resp->result, resp->state);
+            LogStr(buf);
+        }
+        if (cmd_id == 3) {
+            struct {
+                u64 magic;
+                u64 result;
+                u16 reason;
+            } *r2 = (decltype(r2))cur_out_r.Raw;
+            sprintf(buf, "reason %" PRIu64 " %" PRIu16 "\n", r2->result, r2->reason);
+            LogStr(buf);
+        }
+        // if (cmd_id == 100) {
+        //     sprintf(buf, "cmd 100 %x\n", cur_out_r.Handles[0]);
+        //     LogStr(buf);
 
-    //     //     this->sys_event = new IClientEvent(cur_out_r.Handles[0]);
-    //     //     LdnMitMWorker::AddWaitable(this->sys_event);
+        //     this->sys_event = new IClientEvent(cur_out_r.Handles[0]);
+        //     LdnMitMWorker::AddWaitable(this->sys_event);
 
-    //     //     cmdbuf[3] = g_state_event->get_handle();
-    //     //     // cur_out_r.Handles[0] = g_state_event->get_handle();
-    //     //     LogHex(armGetTls(), 0x100);
+        //     cmdbuf[3] = g_state_event->get_handle();
+        //     // cur_out_r.Handles[0] = g_state_event->get_handle();
+        //     LogHex(armGetTls(), 0x100);
 
-    //     //     LogStr("end 100\n");
-    //     // }
+        //     LogStr("end 100\n");
+        // }
 
-    //     retval = resp->result;
-    // }
+        retval = resp->result;
+    }
 
-    // if (cmd_id != 0 && cmd_id != 3) {
-    //     sprintf(buf, "mitm dispatch rc %u\n", retval);
-    //     LogStr(buf);
-    // }
+    if (cmd_id != 0 && cmd_id != 3) {
+        sprintf(buf, "mitm dispatch rc %u\n", retval);
+        LogStr(buf);
+    }
 
-    // memcpy(armGetTls(), backup, 0x100);
-    Result rc = 0xF601;
-    return rc;
+    memcpy(armGetTls(), backup, 0x100);
+    return retval;
 }
