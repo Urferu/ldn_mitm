@@ -4,7 +4,7 @@
 #include "ldn_icommunication.hpp"
 #include "debug.h"
 
-#define USE_MITM 1
+#define USE_MITM 0
 
 enum class LdnSrvCmd {
     CreateUserLocalCommunicationService = 0,

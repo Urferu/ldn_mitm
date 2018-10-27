@@ -102,27 +102,30 @@ void fatalLater(Result err)
     svcCloseHandle(srv);
 }
 bool GetCurrentTime(u64 *out) {
-    BACKUP_TLS();
-    *out = 0;
+    // BACKUP_TLS();
+    // *out = 0;
     
-    /* Verify that pcv isn't dead. */
-    {
-        Handle dummy;
-        if (R_SUCCEEDED(smRegisterService(&dummy, "time:s", false, 0x20))) {
-            svcCloseHandle(dummy);
-            return false;
-        }
-    }
+    // /* Verify that pcv isn't dead. */
+    // {
+    //     Handle dummy;
+    //     if (R_SUCCEEDED(smRegisterService(&dummy, "time:s", false, 0x20))) {
+    //         svcCloseHandle(dummy);
+    //         return false;
+    //     }
+    // }
     
-    /* Try to get the current time. */
-    bool success = false;
-    if (R_SUCCEEDED(timeInitialize())) {
-        if (R_SUCCEEDED(timeGetCurrentTime(TimeType_LocalSystemClock, out))) {
-            success = true;
-        }
-        timeExit();
-    }
+    // /* Try to get the current time. */
+    // bool success = false;
+    // if (R_SUCCEEDED(timeInitialize())) {
+    //     if (R_SUCCEEDED(timeGetCurrentTime(TimeType_LocalSystemClock, out))) {
+    //         success = true;
+    //     }
+    //     timeExit();
+    // }
 
-    RESTORE_TLS();
-    return success;
+    // RESTORE_TLS();
+    // return success;
+    *out = 0;
+    *out = (armGetSystemTick() * 625 / 12) / 1000000;
+    return true;
 }
