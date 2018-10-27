@@ -1,5 +1,44 @@
 #include "ldn_shim.h"
 #include "debug.h"
+#include <string.h>
+
+Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf, void* outStatic) {
+    IpcCommand c;
+    ipcInitialize(&c);
+    struct {
+        u64 magic;
+        u64 cmd_id;
+        u16 channel;
+        u8 unk2[0x60];
+    } *raw;
+    ipcAddRecvBuffer(&c, outBuf, 0x6c00, BufferType_Normal);
+    ipcAddRecvStatic(&c, 0, 0, BufferType_Normal);
+    raw = serviceIpcPrepareHeader(&s->s, &c, sizeof(*raw));
+    raw->magic = SFCI_MAGIC;
+    raw->cmd_id = 102;
+    raw->channel = channel;
+    memcpy(raw->unk2, unk2, 0x60);
+    LogStr("debug1\n");
+    LogHex(armGetTls(), 0x100);
+
+    Result rc = serviceIpcDispatch(&s->s);
+
+    if (R_SUCCEEDED(rc)) {
+        IpcParsedCommand r;
+        struct {
+            u64 magic;
+            u64 result;
+            u16 unk;
+        } *resp;
+        serviceIpcParse(&s->s, &r, sizeof(*resp));
+        resp = r.Raw;
+
+        rc = resp->result;
+        *unkOut = resp->unk;
+    }
+
+    return rc;
+}
 
 Result ldnGetNetworkInfo(UserLocalCommunicationService* s, void* out) {
     IpcCommand c;
