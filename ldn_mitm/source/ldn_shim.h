@@ -71,7 +71,7 @@ typedef struct {
 
 Result fuck(NetworkInfo info);
 Result ldnGetNetworkInfo(UserLocalCommunicationService* s, void* out);
-Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf, void* outStatic);
+Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf);
 Result ldnCreateUserLocalCommunicationService(Service* s, UserLocalCommunicationService* out);
 
 #ifdef __cplusplus

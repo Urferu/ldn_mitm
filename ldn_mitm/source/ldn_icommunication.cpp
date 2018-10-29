@@ -188,10 +188,11 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
 }
 
 
-std::tuple<Result> ICommunicationInterface::scan(OutPointerWithServerSize<u8, 0> buffer, OutBuffer<u8> data) {
-    memcpy(buffer.pointer, scanData, sizeof(scanData));
+std::tuple<Result, u16> ICommunicationInterface::scan(OutPointerWithServerSize<u8, 0> pointer, OutBuffer<u8> buffer) {
+    // memcpy(pointer.pointer, scanData, sizeof(scanData));
+    memcpy(buffer.buffer, scanData, sizeof(scanData));
 
-    return {0};
+    return {0, 1};
 }
 
 Result StateWaiter::handle_signaled(u64 timeout) {
@@ -250,15 +251,14 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         u16 unkOut = 0;
         sprintf(buf, "ldnScan channel %d static %p [1]%p %" PRIu64 " buffer %p %" PRIu64 "\n", resp->channel, r.Statics[0], r.Statics[1], r.NumStaticsOut, r.Buffers[0], r.NumBuffers);
         LogStr(buf);
-        retval = ldnScan(&sys_service, resp->channel, resp->unk2, &unkOut, r.Buffers[0], r.Statics[0]);
+        retval = ldnScan(&sys_service, resp->channel, resp->unk2, &unkOut, r.Buffers[0]);
         sprintf(buf, "ldnScan %d\n", retval);
         LogStr(buf);
         LogHex(r.Buffers[0], 0x1000);
     } else {
         retval = serviceIpcDispatch(&(sys_service.s));
     }
-    u8 backup[0x100];
-    memcpy(backup, armGetTls(), 0x100);
+
     if (cmd_id != 0 && cmd_id != 1 && cmd_id != 3) {
         LogHex(armGetTls(), 0x100);
     }
@@ -309,6 +309,9 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
             sprintf(buf, "cmd 102 statics: %" PRIu64 " 0 ptr %p size %" PRIu64 "\n",
                 cur_out_r.NumStatics, cur_out_r.Statics[0], cur_out_r.StaticSizes[0]);
             LogStr(buf);
+            sprintf(buf, "cmd 102 buffers: %" PRIu64 " 0 ptr %p size %" PRIu64 "\n",
+                cur_out_r.NumBuffers, cur_out_r.Buffers[0], cur_out_r.BufferSizes[0]);
+            LogStr(buf);
 
             ipcAddSendStatic(&out_c, cur_out_r.Statics[0], cur_out_r.StaticSizes[0], 0);
             struct {
@@ -319,6 +322,10 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
             raw->magic = SFCO_MAGIC;
             raw->result = 0;
             raw->unk1 = r2->unk1;
+            LogStr("my resp\n");
+            LogHex(armGetTls(), 0x100);
+            sprintf(buf, "end 102 %d\n", r2->unk1);
+            LogStr(buf);
         }
 
         // if (cmd_id == 100) {
@@ -348,6 +355,5 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
     sprintf(buf, "[%" PRIu64 "] mitm dispatch rc %u\n", t, retval);
     LogStr(buf);
 
-    memcpy(armGetTls(), backup, 0x100);
     return retval;
 }

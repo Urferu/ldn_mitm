@@ -2,7 +2,7 @@
 #include "debug.h"
 #include <string.h>
 
-Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf, void* outStatic) {
+Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf) {
     IpcCommand c;
     ipcInitialize(&c);
     struct {
