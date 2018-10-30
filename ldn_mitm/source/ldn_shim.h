@@ -12,6 +12,7 @@ typedef struct {
 #define AdvertiseDataSizeMax 384
 #define UserNameBytesMax 32
 #define NodeCountMax 8
+#define PassphraseLengthMax 64
 
 typedef struct {
     uint8_t bssid[6];
@@ -70,6 +71,33 @@ typedef struct {
     CommonNetworkInfo common;
     LdnNetworkInfo ldn;
 } NetworkInfo;
+
+typedef struct {
+    uint16_t securityMode;
+    uint16_t passphraseSize;
+    uint8_t passphrase[PassphraseLengthMax];
+} SecurityConfig;
+
+typedef struct {
+    char userName[UserNameBytesMax + 1];
+    uint8_t _unk[15];
+} UserConfig;
+
+typedef struct {
+    IntentId intentId;
+    uint16_t channel;
+    uint8_t nodeCountMax;
+    uint8_t _unk1;
+    uint16_t localCommunicationVersion;
+    uint8_t _unk2[10];
+} NetworkConfig;
+
+typedef struct {
+    SecurityConfig securityConfig;
+    UserConfig userConfig;
+    uint8_t _unk[4];
+    NetworkConfig networkConfig;
+} CreateNetworkConfig;
 
 Result ldnGetNetworkInfo(UserLocalCommunicationService* s, void* out);
 Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf);

@@ -2,6 +2,8 @@
 #include "ldnmitm_worker.hpp"
 #include "hardcode_data.h"
 
+static_assert(sizeof(NetworkInfo) == 0x480, "sizeof(NetworkInfo) should be 0x480");
+
 // https://reswitched.github.io/SwIPC/ifaces.html#nn::ldn::detail::IUserLocalCommunicationService
 
 enum class LdnCommCmd {
@@ -15,6 +17,7 @@ enum class LdnCommCmd {
     OpenAccessPoint = 200,
     CreateNetwork = 202,
     OpenStation = 300,
+    Connect = 302,
     SetAdvertiseData = 206,
     Initialize = 400,
 };
@@ -26,7 +29,7 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
     char buf[128];
     u64 t;
     GetCurrentTime(&t);
-    sprintf(buf, "[%" PRIu64 "] ICommunicationInterface::dispatch cmd_id: %" PRIu64 "\n", t, cmd_id);
+    sprintf(buf, "[%" PRIu64 "] ICommunicationInterface::dispatch cmd_id: %" PRIu64 " raw size %" PRIu64 "\n", t, cmd_id, r.RawSize);
     LogStr(buf);
 
     if (static_cast<LdnCommCmd>(cmd_id) == LdnCommCmd::CreateNetwork) {
@@ -63,6 +66,9 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
             break;
         case LdnCommCmd::OpenStation:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::open_station>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
+        case LdnCommCmd::Connect:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::connect>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
         case LdnCommCmd::SetAdvertiseData:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::set_advertise_data>(this, r, out_c, pointer_buffer, pointer_buffer_size);
@@ -122,10 +128,10 @@ std::tuple<Result> ICommunicationInterface::open_station() {
     return {rc};
 }
 
-std::tuple<Result> ICommunicationInterface::create_network(CreateNetworkData data) {
+std::tuple<Result> ICommunicationInterface::create_network(CreateNetworkConfig data) {
     Result rc = 0;
 
-    LogHex(data.dat, 0x94);
+    LogHex(&data, 0x94);
     this->set_state(CommState::AccessPointCreated);
 
     return {rc};
@@ -137,6 +143,9 @@ std::tuple<Result> ICommunicationInterface::set_advertise_data(InPointer<u8> dat
     char buf[128];
     sprintf(buf, "ICommunicationInterface::set_advertise_data length data1: %" PRIu64 " data2: %" PRIu64 "\n", data1.num_elements, data2.num_elements);
     LogStr(buf);
+    sprintf(buf, "data1: %p data2: %p\n", data1.pointer, data2.buffer);
+    LogStr(buf);
+    LogHex(data1.pointer, data1.num_elements);
 
     return {rc};
 }
@@ -153,18 +162,20 @@ std::tuple<Result, u32, u32> ICommunicationInterface::get_ipv4_address() {
     return {rc, 0xA9FE6601, 0xFFFFFF00};
 }
 
-std::tuple<Result> ICommunicationInterface::get_network_info(OutPointerWithServerSize<u8, 0x480> buffer) {
+std::tuple<Result> ICommunicationInterface::get_network_info(OutPointerWithServerSize<u8, sizeof(NetworkInfo)> buffer) {
     Result rc = 0;
 
     char buf[128];
     sprintf(buf, "get_network_info %p %" PRIu64 " state: %d\n", buffer.pointer, buffer.num_elements, static_cast<u32>(this->state));
     LogStr(buf);
 
-    if (this->state != CommState::AccessPointCreated && this->state != CommState::StationConnected) {
+    if (this->state == CommState::AccessPointCreated) {
+        memcpy(buffer.pointer, hostNetData, sizeof(NetworkInfo));
+    } else if (this->state == CommState::StationConnected) {
+        memcpy(buffer.pointer, scanData, sizeof(NetworkInfo));
+    } else {
         rc = 0x40CB; // ResultConnectionFailed
     }
-
-    memcpy(buffer.pointer, hostNetData, 0x480);
 
     return {rc};
 }
@@ -187,12 +198,23 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
     return {0, this->state_event->get_handle()};
 }
 
-
 std::tuple<Result, u16> ICommunicationInterface::scan(OutPointerWithServerSize<u8, 0> pointer, OutBuffer<u8> buffer) {
     // memcpy(pointer.pointer, scanData, sizeof(scanData));
-    memcpy(buffer.buffer, scanData, sizeof(scanData));
+    memcpy(buffer.buffer, hostNetData, sizeof(NetworkInfo));
+    memcpy(buffer.buffer + sizeof(NetworkInfo), scanData, sizeof(NetworkInfo));
 
-    return {0, 1};
+    return {0, 2};
+}
+
+std::tuple<Result> ICommunicationInterface::connect(InPointer<u8> data) {
+    char buf[64];
+    sprintf(buf, "ICommunicationInterface::connect %" PRIu64 "\n", data.num_elements);
+    LogStr(buf);
+    LogHex(data.pointer, sizeof(NetworkInfo));
+
+    this->set_state(CommState::StationConnected);
+
+    return {0};
 }
 
 Result StateWaiter::handle_signaled(u64 timeout) {

@@ -30,9 +30,6 @@ enum class CommState {
     Error
 };
 
-struct CreateNetworkData {
-    u8 dat[0x94];
-};
 struct GetSecurityParameterData {
     u8 dat[0x20];
 };
@@ -95,11 +92,12 @@ class ICommunicationInterface : public IServiceObject {
         std::tuple<Result, u16> get_disconnect_reason();
         std::tuple<Result, GetSecurityParameterData> get_security_Parameter();
         std::tuple<Result> open_access_point();
-        std::tuple<Result> create_network(CreateNetworkData data);
+        std::tuple<Result> create_network(CreateNetworkConfig data);
         std::tuple<Result> open_station();
         std::tuple<Result> set_advertise_data(InPointer<u8> data1, InBuffer<u8> data2);
         std::tuple<Result, CopiedHandle> attach_state_change_event();
         std::tuple<Result, u16> scan(OutPointerWithServerSize<u8, 0> buffer, OutBuffer<u8> data);
+        std::tuple<Result> connect(InPointer<u8> data);
 };
 
 class IMitMCommunicationInterface : public IServiceObject {
