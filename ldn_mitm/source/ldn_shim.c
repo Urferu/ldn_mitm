@@ -2,6 +2,13 @@
 #include "debug.h"
 #include <string.h>
 
+void NetworkInfo2NetworkConfig(NetworkInfo* info, NetworkConfig* out) {
+    out->intentId = info->networkId.intentId;
+    out->channel = info->common.channel;
+    out->nodeCountMax = info->ldn.nodeCountMax;
+    out->localCommunicationVersion = info->networkId.intentId.localCommunicationVersion;
+}
+
 Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf) {
     IpcCommand c;
     ipcInitialize(&c);

@@ -11,7 +11,7 @@
 //   History: 
 //------------------------------------------------
 struct FILE {
-    uint64 intendId <format=hex>;
+    uint64 intentId <format=hex>;
     uint16 sceneId <format=hex>;
     uint16 localCommunicationVersion;
     uint32 unk2;

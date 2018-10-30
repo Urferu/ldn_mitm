@@ -13,14 +13,18 @@ enum class LdnCommCmd {
     GetIpv4Address = 2,
     GetDisconnectReason = 3,
     GetSecurityParameter = 4,
+    GetNetworkConfig = 5,
     AttachStateChangeEvent = 100,
+    GetNetworkInfoLatestUpdate = 101,
     Scan = 102,
     OpenAccessPoint = 200,
     CloseAccessPoint = 201,
     CreateNetwork = 202,
     DestroyNetwork = 204,
     OpenStation = 300,
+    CloseStation = 301,
     Connect = 302,
+    Disconnect = 304,
     SetAdvertiseData = 206,
     Initialize = 400,
 };
@@ -36,7 +40,7 @@ u32 my_get_ipv4_address() {
     LogStr(buf);
 
     if (R_SUCCEEDED(rc)) {
-        return ip_address;
+        return __builtin_bswap32(ip_address);
     } else {
         return 0xFFFFFFFF;
     }
@@ -69,11 +73,17 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
         case LdnCommCmd::GetDisconnectReason:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::get_disconnect_reason>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
+        case LdnCommCmd::GetNetworkConfig:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::get_network_config>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
         case LdnCommCmd::GetSecurityParameter:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::get_security_Parameter>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
         case LdnCommCmd::AttachStateChangeEvent:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::attach_state_change_event>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
+        case LdnCommCmd::GetNetworkInfoLatestUpdate:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::get_network_info_latest_update>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
         case LdnCommCmd::Scan:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::scan>(this, r, out_c, pointer_buffer, pointer_buffer_size);
@@ -93,8 +103,14 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
         case LdnCommCmd::OpenStation:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::open_station>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
+        case LdnCommCmd::CloseStation:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::close_station>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
         case LdnCommCmd::Connect:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::connect>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
+        case LdnCommCmd::Disconnect:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::disconnect>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
         case LdnCommCmd::SetAdvertiseData:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::set_advertise_data>(this, r, out_c, pointer_buffer, pointer_buffer_size);
@@ -172,6 +188,22 @@ std::tuple<Result> ICommunicationInterface::open_station() {
     return {rc};
 }
 
+std::tuple<Result> ICommunicationInterface::close_station() {
+    Result rc = 0;
+
+    this->set_state(CommState::Initialized);
+
+    return {rc};
+}
+
+std::tuple<Result> ICommunicationInterface::disconnect() {
+    Result rc = 0;
+
+    this->set_state(CommState::Station);
+
+    return {rc};
+}
+
 std::tuple<Result> ICommunicationInterface::create_network(CreateNetworkConfig data) {
     Result rc = 0;
 
@@ -180,7 +212,7 @@ std::tuple<Result> ICommunicationInterface::create_network(CreateNetworkConfig d
     this->network_info.ldn.nodeCountMax = data.networkConfig.nodeCountMax;
     this->network_info.ldn.securityMode = data.securityConfig.securityMode;
     this->network_info.common.channel = data.networkConfig.channel;
-    this->network_info.networkId.intendId = data.networkConfig.intentId;
+    this->network_info.networkId.intentId = data.networkConfig.intentId;
     this->network_info.ldn.nodeCount = 1;
     NodeInfo *nodes = this->network_info.ldn.nodes;
     nodes[0].nodeId = 0;
@@ -219,14 +251,13 @@ std::tuple<Result, u32> ICommunicationInterface::get_state() {
 }
 
 std::tuple<Result, u32, u32> ICommunicationInterface::get_ipv4_address() {
-    u32 ip_address;
-    Result rc = nifmGetCurrentIpAddress(&ip_address);
+    u32 ip_address = my_get_ipv4_address();
     char buf[64];
 
-    sprintf(buf, "get_ipv4_address %d %x\n", rc, ip_address);
+    sprintf(buf, "get_ipv4_address %x\n", ip_address);
     LogStr(buf);
 
-    return {rc, ip_address, 0xFFFF0000};
+    return {0, ip_address, 0xFFFF0000};
 }
 
 std::tuple<Result> ICommunicationInterface::get_network_info(OutPointerWithServerSize<u8, sizeof(NetworkInfo)> buffer) {
@@ -252,10 +283,41 @@ std::tuple<Result, u16> ICommunicationInterface::get_disconnect_reason() {
     return {rc, 1};
 }
 
+std::tuple<Result> ICommunicationInterface::get_network_info_latest_update(OutPointerWithServerSize<u8, 0x480> buffer1, OutPointerWithServerSize<u8, 0x8> buffer2) {
+    Result rc = 0;
+
+    char buf[128];
+    sprintf(buf, "get_network_info_latest_update1 %p %" PRIu64 "\n", buffer1.pointer, buffer1.num_elements);
+    LogStr(buf);
+    sprintf(buf, "get_network_info_latest_update2 %p %" PRIu64 "\n", buffer2.pointer, buffer2.num_elements);
+    LogStr(buf);
+
+    NodeLatestUpdate update = {0};
+    update.stateChange = 0; // None
+
+    if (this->state == CommState::AccessPointCreated || this->state == CommState::StationConnected) {
+        memcpy(buffer1.pointer, &this->network_info, sizeof(NetworkInfo));
+        memcpy(buffer2.pointer, &update, sizeof(update));
+    } else {
+        rc = 0x40CB; // ResultConnectionFailed
+    }
+
+    return {rc};
+}
+
 std::tuple<Result, GetSecurityParameterData> ICommunicationInterface::get_security_Parameter() {
     Result rc = 0;
 
     GetSecurityParameterData data;
+
+    return {rc, data};
+}
+
+std::tuple<Result, NetworkConfig> ICommunicationInterface::get_network_config() {
+    Result rc = 0;
+
+    NetworkConfig data;
+    NetworkInfo2NetworkConfig(&this->network_info, &data);
 
     return {rc, data};
 }
@@ -267,9 +329,10 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
 std::tuple<Result, u16> ICommunicationInterface::scan(OutPointerWithServerSize<u8, 0> pointer, OutBuffer<u8> buffer) {
     // memcpy(pointer.pointer, scanData, sizeof(scanData));
     memcpy(buffer.buffer, hostNetData, sizeof(NetworkInfo));
-    memcpy(buffer.buffer + sizeof(NetworkInfo), scanData, sizeof(NetworkInfo));
 
-    return {0, 2};
+    svcSleepThread(1000000000L);
+
+    return {0, 1};
 }
 
 std::tuple<Result> ICommunicationInterface::connect(ConnectNetworkData dat, InPointer<u8> data) {
@@ -280,10 +343,11 @@ std::tuple<Result> ICommunicationInterface::connect(ConnectNetworkData dat, InPo
     LogHex(&dat, sizeof(dat));
 
     memcpy(&this->network_info, data.pointer, sizeof(NetworkInfo));
+
     this->network_info.ldn.nodeCount++;
     NodeInfo *nodes = this->network_info.ldn.nodes;
     nodes[1].isConnected = 1;
-    strcpy(nodes[1].userName, "me test");
+    strcpy(nodes[1].userName, dat.userConfig.userName);
     nodes[1].localCommunicationVersion = nodes[0].localCommunicationVersion;
 
     nodes[1].ipv4Address = my_get_ipv4_address();
@@ -340,6 +404,9 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
         sprintf(buf, "ldnGetNetworkInfo %d %lu\n", retval, sizeof(decltype(info)));
         LogStr(buf);
         LogHex(info, 0x480);
+    } else if (cmd_id == 101) { // GetNetworkInfoLatestUpdate
+        sprintf(buf, "GetNetworkInfoLatestUpdate static %" PRIu64 " buffer %" PRIu64 "\n", r.NumStaticsOut, r.NumBuffers);
+        LogStr(buf);
     } else if (cmd_id == 102) { // scan
         struct {
             u64 magic;
@@ -399,6 +466,7 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
             } *raw = (decltype(raw))serviceIpcPrepareHeader(&sys_service.s, &out_c, sizeof(*raw));
             raw->magic = SFCO_MAGIC;
             raw->result = 0;
+            LogHex(out_c.Statics[0], cur_out_r.StaticSizes[0]);
         } else if (cmd_id == 102) {
             struct {
                 u64 magic;
@@ -425,6 +493,15 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
             LogHex(armGetTls(), 0x100);
             sprintf(buf, "end 102 %d\n", r2->unk1);
             LogStr(buf);
+        } else if (cmd_id == 202) {
+            u8 backup[0x100];
+            memcpy(backup, armGetTls(), 0x100);
+            u8 info[0x480] = {0};
+            retval = ldnGetNetworkInfo(&sys_service, &info);
+            sprintf(buf, "ldnGetNetworkInfo %d\n", retval);
+            LogStr(buf);
+            LogHex(info, 0x480);
+            memcpy(armGetTls(), backup, 0x100);
         }
 
         // if (cmd_id == 100) {

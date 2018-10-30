@@ -62,9 +62,9 @@ typedef struct {
 } SessionId;
 
 typedef struct {
-    IntentId intendId;
-    SessionId sessionId;
-} NetworkId;
+    IntentId intentId;      // 16bytes
+    SessionId sessionId;    // 16bytes
+} NetworkId;                // 32bytes
 
 typedef struct {
     NetworkId networkId;
@@ -84,13 +84,13 @@ typedef struct {
 } UserConfig;
 
 typedef struct {
-    IntentId intentId;
+    IntentId intentId;      // 16byte
     uint16_t channel;
     uint8_t nodeCountMax;
     uint8_t _unk1;
     uint16_t localCommunicationVersion;
     uint8_t _unk2[10];
-} NetworkConfig;
+} NetworkConfig;            // 32bytes
 
 typedef struct {
     SecurityConfig securityConfig;
@@ -106,9 +106,15 @@ typedef struct {
     uint32_t option;
 } ConnectNetworkData;
 
+typedef struct {
+    uint8_t stateChange;
+    uint8_t _unk[7];
+} NodeLatestUpdate;
+
 Result ldnGetNetworkInfo(UserLocalCommunicationService* s, void* out);
 Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf);
 Result ldnCreateUserLocalCommunicationService(Service* s, UserLocalCommunicationService* out);
+void NetworkInfo2NetworkConfig(NetworkInfo* info, NetworkConfig* out);
 
 #ifdef __cplusplus
 }
