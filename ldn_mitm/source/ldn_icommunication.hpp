@@ -33,6 +33,9 @@ enum class CommState {
 struct GetSecurityParameterData {
     u8 dat[0x20];
 };
+typedef struct {
+    u8 dat[124];
+} ConnectData;
 
 class StateWaiter final : public IWaitable {
     private:
@@ -54,8 +57,11 @@ class ICommunicationInterface : public IServiceObject {
     private:
         CommState state;
         SystemEvent *state_event;
+        NetworkInfo network_info;
+        static const char *FakeSsid;
+        static const uint8_t FakeMac[6];
     public:
-        ICommunicationInterface(): state(CommState::None), state_event(nullptr) {
+        ICommunicationInterface(): state(CommState::None), state_event(nullptr), network_info({0}) {
             LogStr("ICommunicationInterface\n");
             /* ... */
         };
@@ -77,6 +83,20 @@ class ICommunicationInterface : public IServiceObject {
             return 0;
         };
     private:
+        void init_network_info() {
+            memset(&this->network_info, 0, sizeof(NetworkInfo));
+            this->network_info.common.channel = 6;
+            this->network_info.common.linkLevel = 3;
+            this->network_info.common.networkType = 2;
+            this->network_info.common.ssidLength = strlen(FakeSsid);
+
+            memcpy(this->network_info.common.bssid, FakeMac, sizeof(FakeMac));
+            strcpy(this->network_info.common.ssid, FakeSsid);
+            NodeInfo *nodes = this->network_info.ldn.nodes;
+            for (int i = 0; i < NodeCountMax; i++) {
+                nodes[i].nodeId = i;
+            }
+        }
         void set_state(CommState new_state) {
             this->state = new_state;
             if (this->state_event) {
@@ -92,12 +112,14 @@ class ICommunicationInterface : public IServiceObject {
         std::tuple<Result, u16> get_disconnect_reason();
         std::tuple<Result, GetSecurityParameterData> get_security_Parameter();
         std::tuple<Result> open_access_point();
+        std::tuple<Result> close_access_point();
+        std::tuple<Result> destroy_network();
         std::tuple<Result> create_network(CreateNetworkConfig data);
         std::tuple<Result> open_station();
         std::tuple<Result> set_advertise_data(InPointer<u8> data1, InBuffer<u8> data2);
         std::tuple<Result, CopiedHandle> attach_state_change_event();
         std::tuple<Result, u16> scan(OutPointerWithServerSize<u8, 0> buffer, OutBuffer<u8> data);
-        std::tuple<Result> connect(InPointer<u8> data);
+        std::tuple<Result> connect(ConnectNetworkData dat, InPointer<u8> data);
 };
 
 class IMitMCommunicationInterface : public IServiceObject {

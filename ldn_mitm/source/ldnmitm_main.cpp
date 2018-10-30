@@ -102,6 +102,11 @@ void __appInit(void) {
         fatalLater(rc);
     }
 
+    rc = nifmInitialize();
+    if (R_FAILED(rc)) {
+        fatalLater(rc);
+    }
+
     // rc = splInitialize();
     // if (R_FAILED(rc))  {
     //     fatalSimple(0xCAFE << 4 | 3);
@@ -127,6 +132,7 @@ void __appExit(void) {
     LogStr("__appExit\n");
     /* Cleanup services. */
     // splExit();
+    nifmExit();
     fsdevUnmountAll();
     fsExit();
     smMitMExit();

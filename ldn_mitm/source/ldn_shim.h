@@ -25,7 +25,7 @@ typedef struct {
 } CommonNetworkInfo;
 
 typedef struct {
-    uint8_t ipv4Address[4];
+    uint32_t ipv4Address;
 	uint8_t macAddress[6];
     int8_t nodeId;
     int8_t isConnected;
@@ -98,6 +98,13 @@ typedef struct {
     uint8_t _unk[4];
     NetworkConfig networkConfig;
 } CreateNetworkConfig;
+
+typedef struct {
+    SecurityConfig securityConfig;
+    UserConfig userConfig;
+    uint32_t version;
+    uint32_t option;
+} ConnectNetworkData;
 
 Result ldnGetNetworkInfo(UserLocalCommunicationService* s, void* out);
 Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf);

@@ -3,6 +3,7 @@
 #include "hardcode_data.h"
 
 static_assert(sizeof(NetworkInfo) == 0x480, "sizeof(NetworkInfo) should be 0x480");
+static_assert(sizeof(ConnectNetworkData) == 0x7C, "sizeof(ConnectNetworkData) should be 0x7C");
 
 // https://reswitched.github.io/SwIPC/ifaces.html#nn::ldn::detail::IUserLocalCommunicationService
 
@@ -15,7 +16,9 @@ enum class LdnCommCmd {
     AttachStateChangeEvent = 100,
     Scan = 102,
     OpenAccessPoint = 200,
+    CloseAccessPoint = 201,
     CreateNetwork = 202,
+    DestroyNetwork = 204,
     OpenStation = 300,
     Connect = 302,
     SetAdvertiseData = 206,
@@ -24,6 +27,23 @@ enum class LdnCommCmd {
 
 static SystemEvent *g_state_event = NULL;
 
+u32 my_get_ipv4_address() {
+    u32 ip_address;
+    Result rc = nifmGetCurrentIpAddress(&ip_address);
+    char buf[64];
+
+    sprintf(buf, "my get_ipv4_address %d %x\n", rc, ip_address);
+    LogStr(buf);
+
+    if (R_SUCCEEDED(rc)) {
+        return ip_address;
+    } else {
+        return 0xFFFFFFFF;
+    }
+}
+
+const char *ICommunicationInterface::FakeSsid = "12345678123456781234567812345678";
+const uint8_t ICommunicationInterface::FakeMac[6] = {1, 2, 3, 4, 5, 6};
 Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) {
     Result rc = 0xF601;
     char buf[128];
@@ -60,6 +80,12 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
             break;
         case LdnCommCmd::OpenAccessPoint:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::open_access_point>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
+        case LdnCommCmd::CloseAccessPoint:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::close_access_point>(this, r, out_c, pointer_buffer, pointer_buffer_size);
+            break;
+        case LdnCommCmd::DestroyNetwork:
+            rc = WrapIpcCommandImpl<&ICommunicationInterface::destroy_network>(this, r, out_c, pointer_buffer, pointer_buffer_size);
             break;
         case LdnCommCmd::CreateNetwork:
             rc = WrapIpcCommandImpl<&ICommunicationInterface::create_network>(this, r, out_c, pointer_buffer, pointer_buffer_size);
@@ -115,6 +141,23 @@ std::tuple<Result> ICommunicationInterface::initialize(u64 unk, PidDescriptor pi
 std::tuple<Result> ICommunicationInterface::open_access_point() {
     Result rc = 0;
 
+    this->init_network_info();
+    this->set_state(CommState::AccessPoint);
+
+    return {rc};
+}
+
+std::tuple<Result> ICommunicationInterface::close_access_point() {
+    Result rc = 0;
+
+    this->set_state(CommState::Initialized);
+
+    return {rc};
+}
+
+std::tuple<Result> ICommunicationInterface::destroy_network() {
+    Result rc = 0;
+
     this->set_state(CommState::AccessPoint);
 
     return {rc};
@@ -123,6 +166,7 @@ std::tuple<Result> ICommunicationInterface::open_access_point() {
 std::tuple<Result> ICommunicationInterface::open_station() {
     Result rc = 0;
 
+    this->init_network_info();
     this->set_state(CommState::Station);
 
     return {rc};
@@ -132,6 +176,21 @@ std::tuple<Result> ICommunicationInterface::create_network(CreateNetworkConfig d
     Result rc = 0;
 
     LogHex(&data, 0x94);
+
+    this->network_info.ldn.nodeCountMax = data.networkConfig.nodeCountMax;
+    this->network_info.ldn.securityMode = data.securityConfig.securityMode;
+    this->network_info.common.channel = data.networkConfig.channel;
+    this->network_info.networkId.intendId = data.networkConfig.intentId;
+    this->network_info.ldn.nodeCount = 1;
+    NodeInfo *nodes = this->network_info.ldn.nodes;
+    nodes[0].nodeId = 0;
+    nodes[0].isConnected = 1;
+    strcpy(nodes[0].userName, data.userConfig.userName);
+    nodes[0].localCommunicationVersion = data.networkConfig.localCommunicationVersion;
+
+    nodes[0].ipv4Address = my_get_ipv4_address();
+    memcpy(nodes[0].macAddress, FakeMac, sizeof(FakeMac));
+
     this->set_state(CommState::AccessPointCreated);
 
     return {rc};
@@ -147,6 +206,9 @@ std::tuple<Result> ICommunicationInterface::set_advertise_data(InPointer<u8> dat
     LogStr(buf);
     LogHex(data1.pointer, data1.num_elements);
 
+    this->network_info.ldn.advertiseDataSize = data1.num_elements;
+    memcpy(&this->network_info.ldn.advertiseData, data1.pointer, data1.num_elements);
+
     return {rc};
 }
 
@@ -157,9 +219,14 @@ std::tuple<Result, u32> ICommunicationInterface::get_state() {
 }
 
 std::tuple<Result, u32, u32> ICommunicationInterface::get_ipv4_address() {
-    Result rc = 0;
+    u32 ip_address;
+    Result rc = nifmGetCurrentIpAddress(&ip_address);
+    char buf[64];
 
-    return {rc, 0xA9FE6601, 0xFFFFFF00};
+    sprintf(buf, "get_ipv4_address %d %x\n", rc, ip_address);
+    LogStr(buf);
+
+    return {rc, ip_address, 0xFFFF0000};
 }
 
 std::tuple<Result> ICommunicationInterface::get_network_info(OutPointerWithServerSize<u8, sizeof(NetworkInfo)> buffer) {
@@ -169,10 +236,9 @@ std::tuple<Result> ICommunicationInterface::get_network_info(OutPointerWithServe
     sprintf(buf, "get_network_info %p %" PRIu64 " state: %d\n", buffer.pointer, buffer.num_elements, static_cast<u32>(this->state));
     LogStr(buf);
 
-    if (this->state == CommState::AccessPointCreated) {
-        memcpy(buffer.pointer, hostNetData, sizeof(NetworkInfo));
-    } else if (this->state == CommState::StationConnected) {
-        memcpy(buffer.pointer, scanData, sizeof(NetworkInfo));
+    if (this->state == CommState::AccessPointCreated || this->state == CommState::StationConnected) {
+        memcpy(buffer.pointer, &this->network_info, sizeof(NetworkInfo));
+        LogHex(&this->network_info, sizeof(NetworkInfo));
     } else {
         rc = 0x40CB; // ResultConnectionFailed
     }
@@ -206,11 +272,22 @@ std::tuple<Result, u16> ICommunicationInterface::scan(OutPointerWithServerSize<u
     return {0, 2};
 }
 
-std::tuple<Result> ICommunicationInterface::connect(InPointer<u8> data) {
+std::tuple<Result> ICommunicationInterface::connect(ConnectNetworkData dat, InPointer<u8> data) {
     char buf[64];
     sprintf(buf, "ICommunicationInterface::connect %" PRIu64 "\n", data.num_elements);
     LogStr(buf);
     LogHex(data.pointer, sizeof(NetworkInfo));
+    LogHex(&dat, sizeof(dat));
+
+    memcpy(&this->network_info, data.pointer, sizeof(NetworkInfo));
+    this->network_info.ldn.nodeCount++;
+    NodeInfo *nodes = this->network_info.ldn.nodes;
+    nodes[1].isConnected = 1;
+    strcpy(nodes[1].userName, "me test");
+    nodes[1].localCommunicationVersion = nodes[0].localCommunicationVersion;
+
+    nodes[1].ipv4Address = my_get_ipv4_address();
+    memcpy(nodes[1].macAddress, FakeMac, sizeof(FakeMac));
 
     this->set_state(CommState::StationConnected);
 
