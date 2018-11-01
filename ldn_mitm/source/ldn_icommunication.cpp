@@ -308,10 +308,11 @@ std::tuple<Result> ICommunicationInterface::get_network_info_latest_update(OutPo
     return {rc};
 }
 
-std::tuple<Result, GetSecurityParameterData> ICommunicationInterface::get_security_Parameter() {
+std::tuple<Result, SecurityParameter> ICommunicationInterface::get_security_Parameter() {
     Result rc = 0;
 
-    GetSecurityParameterData data;
+    SecurityParameter data;
+    NetworkInfo2SecurityParameter(&this->network_info, &data);
 
     return {rc, data};
 }

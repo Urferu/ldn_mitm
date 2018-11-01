@@ -111,7 +111,7 @@ class ICommunicationInterface : public IServiceObject {
         std::tuple<Result> get_network_info(OutPointerWithServerSize<u8, 0x480> buffer);
         std::tuple<Result, u32, u32> get_ipv4_address();
         std::tuple<Result, u16> get_disconnect_reason();
-        std::tuple<Result, GetSecurityParameterData> get_security_Parameter();
+        std::tuple<Result, SecurityParameter> get_security_Parameter();
         std::tuple<Result, NetworkConfig> get_network_config();
         std::tuple<Result> open_access_point();
         std::tuple<Result> close_access_point();
