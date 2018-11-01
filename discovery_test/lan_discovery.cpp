@@ -1,10 +1,16 @@
-#include "lan_discovery.hpp"
-#include "debug.h"
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <algorithm>
 #include <vector>
 #include <cstring>
 #include <mutex>
-#include <stratosphere.hpp>
+#include <stdint.h>
+#include <unistd.h>
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef int Result;
 
 static const size_t TlsBackupSize = 0x100;
 static const int ModuleID = 0xFE;
@@ -12,20 +18,26 @@ static const int DiscoveryPort = 11452;
 static const int BufferSize = 2048;
 static const int ScanResultCountMax = 24;
 static const u32 LANMagic = 0x114514;
-#define BACKUP_TLS() u8 _tls_backup[TlsBackupSize];memcpy(_tls_backup, armGetTls(), TlsBackupSize);
-#define RESTORE_TLS() memcpy(armGetTls(), _tls_backup, TlsBackupSize);
-
-static int compress(uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size);
-static int decompress(uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size);
+#define BACKUP_TLS() ;
+#define RESTORE_TLS() ;
+#define MAKERESULT(a, b) 0
+#define R_FAILED(a) (a != 0)
 
 namespace LANDiscovery {
+    struct NetworkInfo {
+        int a;
+    };
     static int fd = 0;
     static bool stop = false;
     static bool is_host = false;
     static bool is_active = false;
     static NetworkInfo network_info = {0};
     static std::vector<NetworkInfo> network_list;
-    static HosMutex g_list_mutex;
+    static std::mutex g_list_mutex;
+
+    void LogStr(const char *buf) {
+        printf("%s", buf);
+    }
 
     struct PayloadScanResponse {
         u16 size;
@@ -66,10 +78,6 @@ namespace LANDiscovery {
         return rc;
     }
 
-    void sleep(int sec) {
-        svcSleepThread(1000000000L * sec);
-    }
-
     void set_network_info(NetworkInfo &info) {
         network_info = info;
     }
@@ -107,7 +115,7 @@ namespace LANDiscovery {
     int send_broadcast(LANPacketType type, const void *data, size_t size) {
         struct sockaddr_in addr;
         addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = INADDR_BROADCAST;
+        addr.sin_addr.s_addr = inet_addr("192.168.233.1");
         addr.sin_port = htons(DiscoveryPort);
 
         return send_to(type, data, size, addr, sizeof(addr));
@@ -130,6 +138,7 @@ namespace LANDiscovery {
             char buf[64];
             sprintf(buf, "send_broadcast %d\n", rc);
             LogStr(buf);
+            printf("%d %d %s\n", rc, errno, strerror(errno));
         }
         sleep(1);
 
@@ -201,65 +210,11 @@ namespace LANDiscovery {
     }
 };
 
-int compress(uint8_t *in, size_t input_size, uint8_t *output, size_t *output_size) {
-    uint8_t *in_end = in + input_size;
-    uint8_t *out = output;
-    uint8_t *out_end = output + *output_size;
-
-    while (out < out_end && in < in_end) {
-        uint8_t c = *in++;
-        uint8_t count = 1;
-
-        if (c == 0) {
-            while (*in == 0 && in < in_end && count < 0xFF) {
-                count += 1;
-                in++;
-            }
-        } else if (c == 0xFF) {
-            count = 0xFF;
-        }
-
-        if (c == 0x00 || c == 0xFF) {
-            *out++ = 0xFF;
-
-            if (out == out_end) 
-                return -1;
-            *out++ = count;
-        } else {
-            *out++ = c;
-        }
-    }
-
-    *output_size = out - output;
-
-    return 0;
-}
-
-int decompress(uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size) {
-    uint8_t *in = input;
-    uint8_t *in_end = input + input_size;
-    uint8_t *out = output;
-    uint8_t *out_end = output + *output_size;
-
-    while (in < in_end && out < out_end) {
-        uint8_t c = *in++;
-        uint8_t count = 1;
-        if (c == 0xFF) {
-            if (in == in_end) {
-                return -1;
-            }
-            count = *in++;
-            if (count == 0xFF) {
-                c = 0xFF;
-            }
-        }
-        for (int i = 0; i < count; i++) {
-            *out++ = c;
-            if (out == out_end) {
-                return in < in_end ? -1 : 0;
-            }
-        }
-    }
-
+using namespace LANDiscovery;
+int main() {
+    int rc = initialize();
+    printf("init %d\n", rc);
+    u16 a = 0;
+    rc = scan(NULL, &a, 0);
     return 0;
 }
