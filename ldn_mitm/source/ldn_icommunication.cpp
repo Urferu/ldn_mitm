@@ -174,6 +174,7 @@ std::tuple<Result> ICommunicationInterface::close_access_point() {
 std::tuple<Result> ICommunicationInterface::destroy_network() {
     Result rc = 0;
 
+    LANDiscovery::set_active(false);
     this->set_state(CommState::AccessPoint);
 
     return {rc};
@@ -182,6 +183,8 @@ std::tuple<Result> ICommunicationInterface::destroy_network() {
 std::tuple<Result> ICommunicationInterface::open_station() {
     Result rc = 0;
 
+    LANDiscovery::set_active(true);
+    LANDiscovery::set_host(false);
     this->init_network_info();
     this->set_state(CommState::Station);
 
@@ -191,6 +194,7 @@ std::tuple<Result> ICommunicationInterface::open_station() {
 std::tuple<Result> ICommunicationInterface::close_station() {
     Result rc = 0;
 
+    LANDiscovery::set_active(false);
     this->set_state(CommState::Initialized);
 
     return {rc};
@@ -209,6 +213,8 @@ std::tuple<Result> ICommunicationInterface::create_network(CreateNetworkConfig d
 
     LogHex(&data, 0x94);
 
+    LANDiscovery::set_active(true);
+    LANDiscovery::set_host(true);
     this->network_info.ldn.nodeCountMax = data.networkConfig.nodeCountMax;
     this->network_info.ldn.securityMode = data.securityConfig.securityMode;
     this->network_info.common.channel = data.networkConfig.channel;
@@ -326,13 +332,14 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
     return {0, this->state_event->get_handle()};
 }
 
-std::tuple<Result, u16> ICommunicationInterface::scan(OutPointerWithServerSize<u8, 0> pointer, OutBuffer<u8> buffer) {
+std::tuple<Result, u16> ICommunicationInterface::scan(OutPointerWithServerSize<u8, 0> pointer, OutBuffer<NetworkInfo> buffer, u16 bufferCount) {
     // memcpy(pointer.pointer, scanData, sizeof(scanData));
     memcpy(buffer.buffer, hostNetData, sizeof(NetworkInfo));
 
-    svcSleepThread(1000000000L);
+    u16 outCount = 0;
+    LANDiscovery::scan(buffer.buffer, &outCount, bufferCount);
 
-    return {0, 1};
+    return {0, outCount};
 }
 
 std::tuple<Result> ICommunicationInterface::connect(ConnectNetworkData dat, InPointer<u8> data) {
@@ -415,12 +422,9 @@ Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &ou
             u8 unk2[0x60];
         } *resp = (decltype(resp))r.Raw;
         u16 unkOut = 0;
-        sprintf(buf, "ldnScan channel %d static %p [1]%p %" PRIu64 " buffer %p %" PRIu64 "\n", resp->channel, r.Statics[0], r.Statics[1], r.NumStaticsOut, r.Buffers[0], r.NumBuffers);
-        LogStr(buf);
         retval = ldnScan(&sys_service, resp->channel, resp->unk2, &unkOut, r.Buffers[0]);
         sprintf(buf, "ldnScan %d\n", retval);
         LogStr(buf);
-        LogHex(r.Buffers[0], 0x1000);
     } else {
         retval = serviceIpcDispatch(&(sys_service.s));
     }

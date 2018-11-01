@@ -27,6 +27,7 @@
 #include "mitm_server.hpp"
 #include "ldnmitm_service.hpp"
 #include "ldnmitm_worker.hpp"
+#include "lan_discovery.hpp"
 
 #include "mitm_query_service.hpp"
 
@@ -142,9 +143,9 @@ void __appExit(void) {
 int main(int argc, char **argv)
 {
     Thread worker_thread = {0};
+    Thread lan_thread = {0};
     consoleDebugInit(debugDevice_SVC);
     LogStr("main\n");
-
 
     if (R_FAILED(threadCreate(&worker_thread, &LdnMitMWorker::Main, NULL, 0x20000, 45, 0))) {
         /* TODO: Panic. */
@@ -153,6 +154,14 @@ int main(int argc, char **argv)
     if (R_FAILED(threadStart(&worker_thread))) {
         /* TODO: Panic. */
         LogStr("Error LdnMitMWorker start\n");
+    }
+    if (R_FAILED(threadCreate(&lan_thread, &LANDiscovery::Main, NULL, 0x20000, 45, 0))) {
+        /* TODO: Panic. */
+        LogStr("Error LANDiscovery create\n");
+    }
+    if (R_FAILED(threadStart(&lan_thread))) {
+        /* TODO: Panic. */
+        LogStr("Error LANDiscovery start\n");
     }
 
     /* TODO: What's a good timeout value to use here? */

@@ -17,6 +17,7 @@
 #pragma once
 #include <switch.h>
 #include <inttypes.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -18,6 +18,7 @@
 #include <switch.h>
 #include <stratosphere.hpp>
 #include "ldn_shim.h"
+#include "lan_discovery.hpp"
 #include "debug.h"
 
 enum class CommState {
@@ -121,7 +122,7 @@ class ICommunicationInterface : public IServiceObject {
         std::tuple<Result> disconnect();
         std::tuple<Result> set_advertise_data(InPointer<u8> data1, InBuffer<u8> data2);
         std::tuple<Result, CopiedHandle> attach_state_change_event();
-        std::tuple<Result, u16> scan(OutPointerWithServerSize<u8, 0> buffer, OutBuffer<u8> data);
+        std::tuple<Result, u16> scan(OutPointerWithServerSize<u8, 0> buffer, OutBuffer<NetworkInfo> data, u16 bufferCount);
         std::tuple<Result> connect(ConnectNetworkData dat, InPointer<u8> data);
         std::tuple<Result> get_network_info_latest_update(OutPointerWithServerSize<u8, 0x480> buffer1, OutPointerWithServerSize<u8, 0x8> buffer2);
 };
