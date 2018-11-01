@@ -1,5 +1,6 @@
 #include "lan_discovery.hpp"
 #include "debug.h"
+#include <algorithm>
 #include <vector>
 #include <cstring>
 
@@ -125,14 +126,9 @@ namespace LANDiscovery {
         }
         sleep(1);
 
-        int i = 0;
-        for(auto const& info: network_list) {
-            if (i >= bufferCount) {
-                break;
-            }
-            memcpy(outBuffer + i, &info, sizeof(NetworkInfo));
-        }
-        *pOutCount = i;
+        u16 to_copy = std::min((u16)network_list.size(), bufferCount);
+        std::copy_n(network_list.begin(), to_copy, outBuffer);
+        *pOutCount = to_copy;
 
         return rc;
     }
