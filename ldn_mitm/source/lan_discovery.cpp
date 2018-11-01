@@ -273,7 +273,7 @@ quit:
         u16 bufferCount = 1;
         std::scoped_lock lk{g_list_mutex};
         u16 to_copy = std::min((u16)network_list.size(), bufferCount);
-        sprintf(buf, "get_network_info %d %d", (u32)network_list.size(), to_copy);
+        sprintf(buf, "get_network_info %d %d\n", (u32)network_list.size(), to_copy);
         LogStr(buf);
         std::copy_n(network_list.begin(), to_copy, out);
         if (network_list.size() > 0) {

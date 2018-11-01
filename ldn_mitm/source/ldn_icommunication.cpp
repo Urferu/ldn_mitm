@@ -29,8 +29,6 @@ enum class LdnCommCmd {
     Initialize = 400,
 };
 
-static SystemEvent *g_state_event = NULL;
-
 u32 my_get_ipv4_address() {
     u32 ip_address;
     Result rc = nifmGetCurrentIpAddress(&ip_address);
@@ -149,7 +147,9 @@ std::tuple<Result> ICommunicationInterface::initialize(u64 unk, PidDescriptor pi
     LogStr(buf);
 
     this->set_state(CommState::Initialized);
-    this->state_event = new SystemEvent(NULL, IEvent::PanicCallback);
+    if (this->state_event == nullptr) {
+        this->state_event = new SystemEvent(NULL, IEvent::PanicCallback);
+    }
 
     return {rc};
 }
@@ -239,7 +239,6 @@ std::tuple<Result> ICommunicationInterface::set_advertise_data(InPointer<u8> dat
     LogStr(buf);
     sprintf(buf, "data1: %p data2: %p\n", data1.pointer, data2.buffer);
     LogStr(buf);
-    LogHex(data1.pointer, data1.num_elements);
 
     this->network_info.ldn.advertiseDataSize = data1.num_elements;
     memcpy(&this->network_info.ldn.advertiseData, data1.pointer, data1.num_elements);
@@ -364,28 +363,7 @@ std::tuple<Result> ICommunicationInterface::connect(ConnectNetworkData dat, InPo
     return {0};
 }
 
-Result StateWaiter::handle_signaled(u64 timeout) {
-    svcClearEvent(this->get_handle());
-    svcResetSignal(this->get_handle());
-
-    if (g_state_event) {
-        LogStr("fire\n");
-        g_state_event->signal_event();
-    } else {
-        LogStr("NULL\n");
-    }
-    char buf[64];
-    sprintf(buf, "sys_event_callback %p\n", g_state_event);
-    LogStr(buf);
-    LogHex(armGetTls(), 0x100);
-    return 0;
-}
-
-u8 tmp_info[0x1000] = {0};
 Result IMitMCommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c, u64 cmd_id, u8 *pointer_buffer, size_t pointer_buffer_size) {
-    if (g_state_event == NULL) {
-        g_state_event = new SystemEvent(NULL, &IEvent::PanicCallback);
-    }
     char buf[128];
     IpcParsedCommand cur_out_r;
 
