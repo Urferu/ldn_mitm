@@ -9,7 +9,7 @@
 
 namespace LANDiscovery {
     void set_network_info(NetworkInfo &info);
-    void get_network_info(NetworkInfo *info);
+    void get_network_info(NetworkInfo *out);
     void set_host(bool v);
     int scan(
         NetworkInfo *outBuffer,

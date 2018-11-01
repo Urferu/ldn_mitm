@@ -15,9 +15,6 @@ static const u32 LANMagic = 0x114514;
 #define BACKUP_TLS() u8 _tls_backup[TlsBackupSize];memcpy(_tls_backup, armGetTls(), TlsBackupSize);
 #define RESTORE_TLS() memcpy(armGetTls(), _tls_backup, TlsBackupSize);
 
-static int compress(uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size);
-static int decompress(uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size);
-
 namespace LANDiscovery {
     static int fd = 0;
     static bool stop = false;
@@ -25,6 +22,8 @@ namespace LANDiscovery {
     static NetworkInfo network_info = {0};
     static std::vector<NetworkInfo> network_list;
     static HosMutex g_list_mutex;
+    static Service nifmSrv;
+    static Service nifmIGS;
 
     struct PayloadScanResponse {
         u16 size;
@@ -44,6 +43,58 @@ namespace LANDiscovery {
     int compress(uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size);
     int decompress(uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size);
     int send_broadcast(LANPacketType type);
+
+    Result nifmInit() {
+        Result rc = smGetService(&nifmSrv, "nifm:u");
+        if (R_FAILED(rc)) {
+            rc = MAKERESULT(ModuleID, 5);
+            goto quit;
+        }
+
+        IpcCommand c;
+        IpcParsedCommand r;
+
+        ipcInitialize(&c);
+        ipcSendPid(&c);
+        struct {
+            u64 magic;
+            u64 cmd_id;
+            u64 param;
+        } *raw;
+
+        raw = (decltype(raw))serviceIpcPrepareHeader(&nifmSrv, &c, sizeof(*raw));
+
+        raw->magic = SFCI_MAGIC;
+        raw->cmd_id = 5;
+        raw->param = 0;
+
+        rc = serviceIpcDispatch(&nifmSrv);
+
+        if (R_FAILED(rc)) {
+            rc = MAKERESULT(ModuleID, 6);
+            goto quit;
+        }
+        struct {
+            u64 magic;
+            u64 result;
+        } *resp;
+
+        serviceIpcParse(&nifmSrv, &r, sizeof(*resp));
+        resp = (decltype(resp))r.Raw;
+
+        
+        rc = resp->result;
+
+        if (R_FAILED(rc)) {
+            rc = MAKERESULT(ModuleID, 7);
+            goto quit;
+        }
+
+        serviceCreateSubservice(&nifmIGS, &nifmSrv, &r, 0);
+
+quit:
+        return rc;
+    }
 
     Result initialize() {
         Result rc = 0;
@@ -73,12 +124,17 @@ namespace LANDiscovery {
             }
         }
 
+        rc = nifmInit();
+
         RESTORE_TLS();
         return rc;
     }
 
     void sleep(int sec) {
         svcSleepThread(1000000000L * sec);
+    }
+    void sleepms(int ms) {
+        svcSleepThread(1000000L * ms);
     }
 
     void set_network_info(NetworkInfo &info) {
@@ -108,101 +164,48 @@ namespace LANDiscovery {
         if (size > 0) {
             memcpy(buf + sizeof(header), data, size);
         }
-        LogStr("Start sendto\n");
         return sendto(fd, buf, size + sizeof(header), 0, (struct sockaddr *)&addr, addr_size);
     }
 
     u32 get_broadcast() {
         Result rc;
         u32 ret = 0xFFFFFFFF;
-        Service nifmSrv;
-        Service nifmIGS;
-
-        rc = smGetService(&nifmSrv, "nifm:u");
-        if (R_FAILED(rc)) {
-            goto quit;
-        }
-
         IpcCommand c;
         IpcParsedCommand r;
 
-        {
-            ipcInitialize(&c);
-            ipcSendPid(&c);
-            struct {
-                u64 magic;
-                u64 cmd_id;
-                u64 param;
-            } *raw;
+        ipcInitialize(&c);
+        struct {
+            u64 magic;
+            u64 cmd_id;
+        } *raw;
 
-            raw = (decltype(raw))serviceIpcPrepareHeader(&nifmSrv, &c, sizeof(*raw));
+        raw = (decltype(raw))serviceIpcPrepareHeader(&nifmIGS, &c, sizeof(*raw));
 
-            raw->magic = SFCI_MAGIC;
-            raw->cmd_id = 5;
-            raw->param = 0;
-        }
-
-        rc = serviceIpcDispatch(&nifmSrv);
-
+        raw->magic = SFCI_MAGIC;
+        raw->cmd_id = 15;
+        
+        rc = serviceIpcDispatch(&nifmIGS);
         if (R_FAILED(rc)) {
-            goto quit_close_srv;
+            goto quit;
         }
-        {
-            struct {
-                u64 magic;
-                u64 result;
-            } *resp;
+        struct {
+            u64 magic;
+            u64 result;
+            u8 _unk;
+            u32 address;
+            u32 netmask;
+            u32 gateway;
+        } __attribute__((packed)) *resp;
 
-            serviceIpcParse(&nifmSrv, &r, sizeof(*resp));
-            resp = (decltype(resp))r.Raw;
+        serviceIpcParse(&nifmIGS, &r, sizeof(*resp));
+        resp = (decltype(resp))r.Raw;
 
-            
-            rc = resp->result;
-
-            if (R_FAILED(rc))
-                goto quit_close_srv;
-
-            serviceCreateSubservice(&nifmIGS, &nifmSrv, &r, 0);
+        rc = resp->result;
+        if (R_FAILED(rc)) {
+            goto quit;
         }
-        {
-            ipcInitialize(&c);
-            struct {
-                u64 magic;
-                u64 cmd_id;
-            } *raw;
+        ret = resp->address | ~resp->netmask;
 
-            raw = (decltype(raw))serviceIpcPrepareHeader(&nifmIGS, &c, sizeof(*raw));
-
-            raw->magic = SFCI_MAGIC;
-            raw->cmd_id = 15;
-            
-            rc = serviceIpcDispatch(&nifmIGS);
-            if (R_FAILED(rc)) {
-                goto quit_close_inf;
-            }
-            struct {
-                u64 magic;
-                u64 result;
-                u8 _unk;
-                u32 address;
-                u32 netmask;
-                u32 gateway;
-            } __attribute__((packed)) *resp;
-
-            serviceIpcParse(&nifmIGS, &r, sizeof(*resp));
-            resp = (decltype(resp))r.Raw;
-
-            rc = resp->result;
-            if (R_FAILED(rc)) {
-                goto quit_close_inf;
-            }
-            ret = resp->address | ~resp->netmask;
-        }
-
-quit_close_inf:
-        serviceClose(&nifmIGS);
-quit_close_srv:
-        serviceClose(&nifmSrv);
 quit:
         return ret;
     }
@@ -263,9 +266,25 @@ quit:
         return rc;
     }
 
+    void get_network_info(
+        NetworkInfo *out
+    ) {
+        char buf[64];
+        u16 bufferCount = 1;
+        std::scoped_lock lk{g_list_mutex};
+        u16 to_copy = std::min((u16)network_list.size(), bufferCount);
+        sprintf(buf, "get_network_info %d %d", (u32)network_list.size(), to_copy);
+        LogStr(buf);
+        std::copy_n(network_list.begin(), to_copy, out);
+        if (network_list.size() > 0) {
+            // LogHex(outBuffer, sizeof(NetworkInfo));
+        }
+    }
+
     void on_message(LANPacketType type, const void *data, struct sockaddr_in &addr) {
         switch (type) {
             case LANPacketType::scan: {
+                LogStr("recv scan\n");
                 if (is_host) {
                     send_to(LANPacketType::scan_resp, &network_info, sizeof(network_info), addr, sizeof(addr));
                 }
@@ -289,7 +308,7 @@ quit:
     }
 
     void serve() {
-        u8 buffer[BufferSize];
+        static u8 buffer[BufferSize];
         struct sockaddr_in addr;
         socklen_t addr_len;
         ssize_t len;
@@ -297,7 +316,8 @@ quit:
         while (!stop) {
             addr_len = sizeof(addr);
             len = recvfrom(fd, buffer, sizeof(buffer), 0, (struct sockaddr *)&addr, &addr_len);
-            if (len < 0) {
+            if (len <= 0) {
+                sleepms(100);
                 continue;
             }
             if ((size_t)len >= sizeof(LANPacketHeader)) {

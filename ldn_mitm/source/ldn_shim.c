@@ -6,7 +6,12 @@ void NetworkInfo2NetworkConfig(NetworkInfo* info, NetworkConfig* out) {
     out->intentId = info->networkId.intentId;
     out->channel = info->common.channel;
     out->nodeCountMax = info->ldn.nodeCountMax;
-    out->localCommunicationVersion = info->networkId.intentId.localCommunicationVersion;
+    out->localCommunicationVersion = 1;
+}
+
+void NetworkInfo2SecurityParameter(NetworkInfo* info, SecurityParameter* out) {
+    out->sessionId = info->networkId.sessionId;
+    memcpy(out->unkRandom, info->ldn.unkRandom, 16);
 }
 
 Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf) {

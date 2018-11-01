@@ -40,8 +40,8 @@ typedef struct {
     uint16_t securityMode;
     uint8_t stationAcceptPolicy;
     uint8_t _unk1[3];
-    int8_t nodeCountMax;
-    int8_t nodeCount;
+    uint8_t nodeCountMax;
+    uint8_t nodeCount;
     NodeInfo nodes[NodeCountMax];
     uint16_t _unk2;
     uint16_t advertiseDataSize;
@@ -51,9 +51,9 @@ typedef struct {
 
 typedef struct {
     uint64_t localCommunicationId;
+    uint8_t _unk1[2];
     uint16_t sceneId;
-    uint16_t localCommunicationVersion;
-    uint32_t _unk;
+    uint8_t _unk2[4];
 } IntentId;
 
 typedef struct {
@@ -111,10 +111,16 @@ typedef struct {
     uint8_t _unk[7];
 } NodeLatestUpdate;
 
+typedef struct {
+    uint8_t unkRandom[16];
+    SessionId sessionId;
+} SecurityParameter;
+
 Result ldnGetNetworkInfo(UserLocalCommunicationService* s, void* out);
 Result ldnScan(UserLocalCommunicationService* s, u16 channel, void* unk2, u16* unkOut, void* outBuf);
 Result ldnCreateUserLocalCommunicationService(Service* s, UserLocalCommunicationService* out);
 void NetworkInfo2NetworkConfig(NetworkInfo* info, NetworkConfig* out);
+void NetworkInfo2SecurityParameter(NetworkInfo* info, SecurityParameter* out);
 
 #ifdef __cplusplus
 }

@@ -127,8 +127,8 @@ Result ICommunicationInterface::dispatch(IpcParsedCommand &r, IpcCommand &out_c,
     sprintf(buf, "[%" PRIu64 "] ICommunicationInterface::dispatch rc: %x\n", t, rc);
     LogStr(buf);
 
-    if (cmd_id == 102) {
-        LogStr("cmd 102 resp\n");
+    if (cmd_id == 5) {
+        LogStr("cmd 5 resp\n");
         LogHex(armGetTls(), 0x100);
     }
 
@@ -272,7 +272,6 @@ std::tuple<Result> ICommunicationInterface::get_network_info(OutPointerWithServe
 
     if (this->state == CommState::AccessPointCreated || this->state == CommState::StationConnected) {
         memcpy(buffer.pointer, &this->network_info, sizeof(NetworkInfo));
-        LogHex(&this->network_info, sizeof(NetworkInfo));
     } else {
         rc = 0x40CB; // ResultConnectionFailed
     }
@@ -299,6 +298,7 @@ std::tuple<Result> ICommunicationInterface::get_network_info_latest_update(OutPo
     update.stateChange = 0; // None
 
     if (this->state == CommState::AccessPointCreated || this->state == CommState::StationConnected) {
+        LANDiscovery::get_network_info(&this->network_info);
         memcpy(buffer1.pointer, &this->network_info, sizeof(NetworkInfo));
         memcpy(buffer2.pointer, &update, sizeof(update));
     } else {
@@ -330,9 +330,6 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
 }
 
 std::tuple<Result, u16> ICommunicationInterface::scan(OutPointerWithServerSize<u8, 0> pointer, OutBuffer<NetworkInfo> buffer, u16 bufferCount) {
-    // memcpy(pointer.pointer, scanData, sizeof(scanData));
-    // memcpy(buffer.buffer, hostNetData, sizeof(NetworkInfo));
-
     bufferCount = 8;
     u16 outCount = 0;
     LANDiscovery::scan(buffer.buffer, &outCount, bufferCount);
