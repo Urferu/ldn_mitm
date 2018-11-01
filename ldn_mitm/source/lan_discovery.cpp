@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <vector>
 #include <cstring>
+#include <mutex>
+#include <stratosphere.hpp>
 
 static const size_t TlsBackupSize = 0x100;
 static const int ModuleID = 0xFE;
@@ -20,6 +22,7 @@ namespace LANDiscovery {
     static bool is_active = false;
     static NetworkInfo network_info = {0};
     static std::vector<NetworkInfo> network_list;
+    static HosMutex g_list_mutex;
 
     struct PayloadScanResponse {
         u16 size;
@@ -116,6 +119,7 @@ namespace LANDiscovery {
         u16 *pOutCount,
         u16 bufferCount
     ) {
+        std::scoped_lock lk{g_list_mutex};
         network_list.clear();
 
         int rc = send_broadcast(LANPacketType::scan, NULL, 0);
@@ -143,6 +147,7 @@ namespace LANDiscovery {
             }
             case LANPacketType::scan_resp: {
                 if (!is_host) {
+                    std::scoped_lock lk{g_list_mutex};
                     NetworkInfo *info = (NetworkInfo *)data;
                     network_list.push_back(*info);
                 }
