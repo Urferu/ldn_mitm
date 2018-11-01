@@ -22,7 +22,6 @@ namespace LANDiscovery {
     static int fd = 0;
     static bool stop = false;
     static bool is_host = false;
-    static bool is_active = false;
     static NetworkInfo network_info = {0};
     static std::vector<NetworkInfo> network_list;
     static HosMutex g_list_mutex;
@@ -84,10 +83,6 @@ namespace LANDiscovery {
 
     void set_network_info(NetworkInfo &info) {
         network_info = info;
-    }
-
-    void set_active(bool v) {
-        is_active = v;
     }
 
     void set_host(bool v) {
@@ -242,23 +237,25 @@ quit:
             network_list.clear();
         }
 
-        LogStr("Start send_broadcast\n");
         int rc = send_broadcast(LANPacketType::scan);
-        LogStr("End send_broadcast\n");
         if (rc < 0) {
             char buf[64];
             sprintf(buf, "send_broadcast %d\n", rc);
             LogStr(buf);
         }
 
-        LogStr("Start sleep\n");
         sleep(1);
-        LogStr("End sleep\n");
 
         {
+            char buf[64];
             std::scoped_lock lk{g_list_mutex};
             u16 to_copy = std::min((u16)network_list.size(), bufferCount);
+            sprintf(buf, "scan result %d %d", (u32)network_list.size(), to_copy);
+            LogStr(buf);
             std::copy_n(network_list.begin(), to_copy, outBuffer);
+            if (network_list.size() > 0) {
+                // LogHex(outBuffer, sizeof(NetworkInfo));
+            }
             *pOutCount = to_copy;
         }
 
@@ -303,13 +300,10 @@ quit:
             if (len < 0) {
                 continue;
             }
-            if (!is_active) {
-                continue;
-            }
             if ((size_t)len >= sizeof(LANPacketHeader)) {
                 LANPacketHeader *header = (LANPacketHeader *)buffer;
                 if (header->magic == LANMagic) {
-                    on_message(header->type, buffer, addr);
+                    on_message(header->type, buffer + sizeof(LANPacketHeader), addr);
                 }
             }
         }
