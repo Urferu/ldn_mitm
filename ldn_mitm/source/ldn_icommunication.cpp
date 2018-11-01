@@ -213,8 +213,6 @@ std::tuple<Result> ICommunicationInterface::create_network(CreateNetworkConfig d
 
     LogHex(&data, 0x94);
 
-    LANDiscovery::set_active(true);
-    LANDiscovery::set_host(true);
     this->network_info.ldn.nodeCountMax = data.networkConfig.nodeCountMax;
     this->network_info.ldn.securityMode = data.securityConfig.securityMode;
     this->network_info.common.channel = data.networkConfig.channel;
@@ -229,6 +227,9 @@ std::tuple<Result> ICommunicationInterface::create_network(CreateNetworkConfig d
     nodes[0].ipv4Address = my_get_ipv4_address();
     memcpy(nodes[0].macAddress, FakeMac, sizeof(FakeMac));
 
+    LANDiscovery::set_active(true);
+    LANDiscovery::set_host(true);
+    LANDiscovery::set_network_info(this->network_info);
     this->set_state(CommState::AccessPointCreated);
 
     return {rc};
@@ -334,7 +335,7 @@ std::tuple<Result, CopiedHandle> ICommunicationInterface::attach_state_change_ev
 
 std::tuple<Result, u16> ICommunicationInterface::scan(OutPointerWithServerSize<u8, 0> pointer, OutBuffer<NetworkInfo> buffer, u16 bufferCount) {
     // memcpy(pointer.pointer, scanData, sizeof(scanData));
-    memcpy(buffer.buffer, hostNetData, sizeof(NetworkInfo));
+    // memcpy(buffer.buffer, hostNetData, sizeof(NetworkInfo));
 
     u16 outCount = 0;
     LANDiscovery::scan(buffer.buffer, &outCount, bufferCount);

@@ -115,7 +115,7 @@ namespace LANDiscovery {
     int send_broadcast(LANPacketType type, const void *data, size_t size) {
         struct sockaddr_in addr;
         addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = inet_addr("192.168.233.1");
+        addr.sin_addr.s_addr = inet_addr("192.168.233.255");
         addr.sin_port = htons(DiscoveryPort);
 
         return send_to(type, data, size, addr, sizeof(addr));

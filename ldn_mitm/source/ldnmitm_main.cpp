@@ -102,8 +102,22 @@ void __appInit(void) {
     if (R_FAILED(rc)) {
         fatalLater(rc);
     }
+    
+    #define SOCK_BUFFERSIZE 0x1000
+    static const SocketInitConfig socketInitConfig = {
+        .bsdsockets_version = 1,
 
-    rc = nifmInitialize();
+        .tcp_tx_buf_size = 8 * SOCK_BUFFERSIZE,
+        .tcp_rx_buf_size = 8 * SOCK_BUFFERSIZE,
+        .tcp_tx_buf_max_size = 16 * SOCK_BUFFERSIZE,
+        .tcp_rx_buf_max_size = 16 * SOCK_BUFFERSIZE,
+
+        .udp_tx_buf_size = 0x2400,
+        .udp_rx_buf_size = 0xA500,
+
+        .sb_efficiency = 8,
+    };
+    rc = socketInitialize(&socketInitConfig);
     if (R_FAILED(rc)) {
         fatalLater(rc);
     }
@@ -133,7 +147,7 @@ void __appExit(void) {
     LogStr("__appExit\n");
     /* Cleanup services. */
     // splExit();
-    nifmExit();
+    socketExit();
     fsdevUnmountAll();
     fsExit();
     smMitMExit();

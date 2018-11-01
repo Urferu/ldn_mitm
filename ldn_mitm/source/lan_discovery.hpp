@@ -1,8 +1,10 @@
 #pragma once
 #include <switch.h>
 #include <sys/socket.h>
+#include <sys/sockio.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #include "ldn_shim.h"
 
 namespace LANDiscovery {

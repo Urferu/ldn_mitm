@@ -44,6 +44,7 @@ namespace LANDiscovery {
 
     int compress(uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size);
     int decompress(uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size);
+    int send_broadcast(LANPacketType type);
 
     Result initialize() {
         Result rc = 0;
@@ -59,6 +60,17 @@ namespace LANDiscovery {
             addr.sin_port = htons(DiscoveryPort);
             if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
                 rc = MAKERESULT(ModuleID, 2);
+            } else {
+                struct timeval t = {1, 0};
+                rc = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &t, sizeof(t));
+                if (rc != 0) {
+                    rc = MAKERESULT(ModuleID, 3);
+                }
+                int b = 1;
+                rc = setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &b, sizeof(b));
+                if (rc != 0) {
+                    rc = MAKERESULT(ModuleID, 4);
+                }
             }
         }
 
@@ -101,13 +113,114 @@ namespace LANDiscovery {
         if (size > 0) {
             memcpy(buf + sizeof(header), data, size);
         }
+        LogStr("Start sendto\n");
         return sendto(fd, buf, size + sizeof(header), 0, (struct sockaddr *)&addr, addr_size);
+    }
+
+    u32 get_broadcast() {
+        Result rc;
+        u32 ret = 0xFFFFFFFF;
+        Service nifmSrv;
+        Service nifmIGS;
+
+        rc = smGetService(&nifmSrv, "nifm:u");
+        if (R_FAILED(rc)) {
+            goto quit;
+        }
+
+        IpcCommand c;
+        IpcParsedCommand r;
+
+        {
+            ipcInitialize(&c);
+            ipcSendPid(&c);
+            struct {
+                u64 magic;
+                u64 cmd_id;
+                u64 param;
+            } *raw;
+
+            raw = (decltype(raw))serviceIpcPrepareHeader(&nifmSrv, &c, sizeof(*raw));
+
+            raw->magic = SFCI_MAGIC;
+            raw->cmd_id = 5;
+            raw->param = 0;
+        }
+
+        rc = serviceIpcDispatch(&nifmSrv);
+
+        if (R_FAILED(rc)) {
+            goto quit_close_srv;
+        }
+        {
+            struct {
+                u64 magic;
+                u64 result;
+            } *resp;
+
+            serviceIpcParse(&nifmSrv, &r, sizeof(*resp));
+            resp = (decltype(resp))r.Raw;
+
+            
+            rc = resp->result;
+
+            if (R_FAILED(rc))
+                goto quit_close_srv;
+
+            serviceCreateSubservice(&nifmIGS, &nifmSrv, &r, 0);
+        }
+        {
+            ipcInitialize(&c);
+            struct {
+                u64 magic;
+                u64 cmd_id;
+            } *raw;
+
+            raw = (decltype(raw))serviceIpcPrepareHeader(&nifmIGS, &c, sizeof(*raw));
+
+            raw->magic = SFCI_MAGIC;
+            raw->cmd_id = 15;
+            
+            rc = serviceIpcDispatch(&nifmIGS);
+            if (R_FAILED(rc)) {
+                goto quit_close_inf;
+            }
+            struct {
+                u64 magic;
+                u64 result;
+                u8 _unk;
+                u32 address;
+                u32 netmask;
+                u32 gateway;
+            } __attribute__((packed)) *resp;
+
+            serviceIpcParse(&nifmIGS, &r, sizeof(*resp));
+            resp = (decltype(resp))r.Raw;
+
+            rc = resp->result;
+            if (R_FAILED(rc)) {
+                goto quit_close_inf;
+            }
+            ret = resp->address | ~resp->netmask;
+        }
+
+quit_close_inf:
+        serviceClose(&nifmIGS);
+quit_close_srv:
+        serviceClose(&nifmSrv);
+quit:
+        return ret;
     }
 
     int send_broadcast(LANPacketType type, const void *data, size_t size) {
         struct sockaddr_in addr;
+        char buf[64];
+        sprintf(buf, "broadcast %x\n", get_broadcast());
+        LogStr(buf);
+
         addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = INADDR_BROADCAST;
+        // addr.sin_addr.s_addr = inet_addr("192.168.233.255");
+        addr.sin_addr.s_addr = get_broadcast();
         addr.sin_port = htons(DiscoveryPort);
 
         return send_to(type, data, size, addr, sizeof(addr));
@@ -122,21 +235,34 @@ namespace LANDiscovery {
         u16 *pOutCount,
         u16 bufferCount
     ) {
-        std::scoped_lock lk{g_list_mutex};
-        network_list.clear();
+        BACKUP_TLS();
 
-        int rc = send_broadcast(LANPacketType::scan, NULL, 0);
+        {
+            std::scoped_lock lk{g_list_mutex};
+            network_list.clear();
+        }
+
+        LogStr("Start send_broadcast\n");
+        int rc = send_broadcast(LANPacketType::scan);
+        LogStr("End send_broadcast\n");
         if (rc < 0) {
             char buf[64];
             sprintf(buf, "send_broadcast %d\n", rc);
             LogStr(buf);
         }
+
+        LogStr("Start sleep\n");
         sleep(1);
+        LogStr("End sleep\n");
 
-        u16 to_copy = std::min((u16)network_list.size(), bufferCount);
-        std::copy_n(network_list.begin(), to_copy, outBuffer);
-        *pOutCount = to_copy;
+        {
+            std::scoped_lock lk{g_list_mutex};
+            u16 to_copy = std::min((u16)network_list.size(), bufferCount);
+            std::copy_n(network_list.begin(), to_copy, outBuffer);
+            *pOutCount = to_copy;
+        }
 
+        RESTORE_TLS();
         return rc;
     }
 
@@ -175,8 +301,7 @@ namespace LANDiscovery {
             addr_len = sizeof(addr);
             len = recvfrom(fd, buffer, sizeof(buffer), 0, (struct sockaddr *)&addr, &addr_len);
             if (len < 0) {
-                LogStr("error recvfrom\n");
-                break;
+                continue;
             }
             if (!is_active) {
                 continue;
@@ -193,14 +318,21 @@ namespace LANDiscovery {
     }
 
     void Main(void *arg) {
-        if (R_FAILED(initialize())) {
+        sleep(2);
+        LogStr("LANDiscovery::main\n");
+        Result rc = initialize();
+        if (R_FAILED(rc)) {
             /* TODO: Panic. */
-            LogStr("Error LDNDiscovery::initialize\n");
+            char buf[64];
+            sprintf(buf, "Error LDNDiscovery::initialize %d\n", rc);
+            LogStr(buf);
         }
+        LogStr("LANDiscovery::start serve\n");
         serve();
     }
 };
 
+#if 0
 int compress(uint8_t *in, size_t input_size, uint8_t *output, size_t *output_size) {
     uint8_t *in_end = in + input_size;
     uint8_t *out = output;
@@ -263,3 +395,4 @@ int decompress(uint8_t *input, size_t input_size, uint8_t *output, size_t *outpu
 
     return 0;
 }
+#endif
