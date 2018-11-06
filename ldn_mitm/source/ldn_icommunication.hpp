@@ -60,6 +60,8 @@ enum class CommState {
 
 class ICommunicationInterface : public IServiceObject {
     private:
+        static Service nifmSrv;
+        static Service nifmIGS;
         CommState state;
     public:
         ICommunicationInterface(): state(CommState::None) {
@@ -71,6 +73,9 @@ class ICommunicationInterface : public IServiceObject {
             LogStr("~ICommunicationInterface\n");
             /* ... */
         };
+    private:
+        static Result nifmInit();
+
     private:
         Result ReturnSuccess() {
             return 0;
